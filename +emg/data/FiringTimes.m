@@ -20,8 +20,7 @@ mus = m.Data.ParamSamples;
 
 % Also add the fibre types from "the" global parameter set (faster
 % tests/experiments as precomp can be used when using the global param set)
-mudir = fileparts(which('models.emg.Model'));
-s = load(fullfile(mudir,'data','mus.mat'));
+s = load(fullfile(models.emg.Model.DataDir,'mus.mat'));
 mus = [s.mus mus];
 numsamples = size(mus,2);
 
