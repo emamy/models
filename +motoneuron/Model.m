@@ -73,7 +73,7 @@ classdef Model < models.BaseFullModel
             [varargout{1:nargout}] = this.System.plot(varargin{:});
         end
         
-        function [peaks, cov_isi,cov_dr,freq] = analyze(~, t, y)
+        function [peaks, cov_isi, cov_dr, freq] = analyze(~, t, y)
             p = models.musclefibre.experiments.Processor;
             p.minV = 55;
             peaks = p.getPeakIdx(t, y(2,:));

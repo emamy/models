@@ -134,8 +134,4 @@ classdef Model < models.BaseFullModel
             end
         end
     end
-    
-    methods(Static)
-        
-    end
 end

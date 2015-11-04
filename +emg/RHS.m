@@ -215,7 +215,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
             % usable parameters for the learned expansion only make
             % sense within the ParamDomain, which is approximately
             % bounded above by polyval-1.
-            mc = min(polyval(this.upperlimit_poly,ftype)-1,mc);
+            mc = min(polyval(this.upperlimit_poly,ftype),mc);
             mu = [ftype; mc];
             if this.fullshapes
                 sig = this.dvm.computeSignal(t, mu);
@@ -231,7 +231,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
 
                 % Get firing times and remove those that fire beyond
                 % the max requested times
-                ft = this.MUFiringTimes{muidx};
+                ft = this.MUFiringTimes{muidx}-.4;
                 ft(ft > max(t)) = [];
 
                 % Dynamic amplitudes
