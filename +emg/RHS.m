@@ -13,12 +13,12 @@ classdef RHS < dscomponents.ACompEvalCoreFun
     % - \c Documentation http://www.morepas.org/software/kermor/index.html
     % - \c License @ref licensing
     
+    properties(Constant)
+        SignalData = load(fullfile(models.emg.Model.DataDir,'SignalData.mat'));
+    end
+    
     properties(SetAccess = private)
         B; % the B matrix (discrete generalized Laplace with conductivity sigma_i)
-        
-        % velocity of action potentials propagating along the muscle
-        % fibres in m/s (=> 10cm/ms)
-        APvelocity = 2;
         
         % cell array with precomputed action potential shapes for each
         % fibre type
@@ -43,6 +43,17 @@ classdef RHS < dscomponents.ACompEvalCoreFun
         % matrix<integer> of dimension dim(2) \times zdim_m
         % see also: initNeuronposGaussian
         neuronpos;
+        
+        % velocity of action potentials propagating along the muscle
+        % fibres in m/s (=> 10cm/ms)
+        APvelocity = 1.8704;
+        
+        % The time shift for firing time to shape placement.
+        %
+        % 2.5 is the offset for the precomputed shapes from start to peak,
+        % and -.3 ms the time shift between the peak of the motoneuron
+        % signal and the peak of the action potential
+        FTShift = 2.5-.3;
     end
     
     properties(SetAccess=private)
@@ -77,6 +88,8 @@ classdef RHS < dscomponents.ACompEvalCoreFun
         function this = RHS(sys)
             this = this@dscomponents.ACompEvalCoreFun(sys);
             this.rs = RandStream('mt19937ar','Seed',24247247);
+            s = load(models.motoneuron.Model.FILE_UPPERLIMITPOLY);
+            this.upperlimit_poly = s.upperlimit_poly;
         end
         
         function init(this, opts)
@@ -213,8 +226,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
             % resulting frequencies, but the ParamDomain from Timm
             % Strecker is more restrictive. As a consequence, the
             % usable parameters for the learned expansion only make
-            % sense within the ParamDomain, which is approximately
-            % bounded above by polyval-1.
+            % sense within the ParamDomain.
             mc = min(polyval(this.upperlimit_poly,ftype),mc);
             mu = [ftype; mc];
             if this.fullshapes
@@ -231,7 +243,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
 
                 % Get firing times and remove those that fire beyond
                 % the max requested times
-                ft = this.MUFiringTimes{muidx}-.4;
+                ft = this.MUFiringTimes{muidx}-this.FTShift;
                 ft(ft > max(t)) = [];
 
                 % Dynamic amplitudes
@@ -240,17 +252,21 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                     % expansion - the time has a different order of magnitude
                     % and is hence scaled so that all arguments are of equal
                     % importance to the expansion (more stable learning)
-                    s = this.amp_xiscale;
+%                     s = this.amp_xiscale;
                     % Arguments: fibre_type, mean_current, time
                     % Important here is to take the speed and amplitudes
                     % for the time instant the junction fire signal was
                     % received, as propagating potentials would have decreasing
                     % amplitudes over time even though the signal would be the
                     % same
-                    xi = [repmat(mu./s(1:2),1,length(ft))
-                          ft/s(3)];
+%                     xi = [repmat(mu./s(1:2),1,length(ft))
+%                           ft/s(3)];
                     % Get learned amplitudes!
-                    amp = this.amp_kexp.evaluate(xi);
+%                     amp = this.amp_kexp.evaluate(xi);
+                    precomp_mu_pos = Utils.findVecInMatrix(...
+                        this.SignalData.mus,mu);
+                    amp = this.SignalData.A{precomp_mu_pos};
+                    amp = amp(1:length(ft));
                     amp_fac = (amp-base)/this.APShapes_misc(2,muidx);
                 else
                     amp_fac = ones(size(ft));
@@ -258,11 +274,15 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                 % Dynamic propagation speeds
                 if o.DynamicPropagationSpeed
                     % See o.DynamicAmplitudes case for comments
-                    s = this.ps_xiscale;
-                    xi = [repmat([ftype; mc]./s(1:2),1,length(ft))
-                          ft/s(3)];
+%                     s = this.ps_xiscale;
+%                     xi = [repmat([ftype; mc]./s(1:2),1,length(ft))
+%                           ft/s(3)];
                     % Get learned velocities!
-                    v = this.ps_kexp.evaluate(xi)/10;
+%                     v2 = this.ps_kexp.evaluate(xi)/10;
+                    precomp_mu_pos = Utils.findVecInMatrix(...
+                        this.SignalData.mus,mu);
+                    velos = this.SignalData.V{precomp_mu_pos};
+                    v = velos(1:length(ft))/10;
                 else
                     v = this.APvelocity/10*ones(size(ft));
                 end
@@ -278,9 +298,35 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                     % Get the amount of time passed until the signal reaches
                     % each sarcomere (including the local one at 0)
                     shifted_ft = xpos / v(fidx);
+                    
+                    % Code speedup: The min operation on 100000 timesteps
+                    % really cracks the runtime - hence we find the time
+                    % interval at which the shifted time indices will occur
+                    % and only search within that.
+                    % Step 1: Limit search to times later or equal to the firing
+                    % time
+                    startidx = max(1,find(ft(fidx) < t, 1)-1);
+                    % Step 2: Find the maximum time to look for and stop
+                    % searching after that time
+                    endidx = find(ft(fidx)+shifted_ft(end) < t, 1);
+                    % If there is no smaller time, we are at the end of the
+                    % time interval
+                    if isempty(endidx)
+                        endidx = tlen;
+                    end
+                    % Select only the relevant times to look within (see
+                    % step 1+2 above)
+                    tslice = t(startidx:endidx);
                     % Get pairwise difference and find absolute minima =
                     % matching locations
-                    [~,shifted_tidx] = min(abs(bsxfun(@minus,t-ft(fidx),shifted_ft')),[],2);
+                    pdiff = bsxfun(@minus,tslice-ft(fidx),shifted_ft');
+                    [~, shifted_tidx] = min(abs(pdiff),[],2);
+                    shifted_tidx = shifted_tidx + startidx-1;
+                    % Get pairwise difference and find absolute minima =
+                    % matching locations
+                    % - original code - shorter but MUCH slower
+%                     pdiff = bsxfun(@minus,t-ft(fidx),shifted_ft');
+%                     [~, shifted_tidx] = min(abs(pdiff),[],2);
                     for xidx = 1:xdim
                         % Detect how many shape time-steps can be inserted
                         % (might go over the time-index)
@@ -328,7 +374,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                 % We need to compute the current
                 % action potential shapes, possibly for each current model
                 % time-step dt
-                this.updateAPShapes;
+                this.updateAPShapes(mu);
 
                 % Update the firing times
                 this.updateFiringTimes(mu);
@@ -349,12 +395,13 @@ classdef RHS < dscomponents.ACompEvalCoreFun
             end
         end
         
-        function updateAPShapes(this)
+        function updateAPShapes(this, mean_current)
             % Choose same step size for precomputed shapes
             fm = this.System.Model;
             cur_dt = fm.dt;
             % Only compute if not yet done or step size changed
-            if isempty(this.last_dt) || ~isequal(this.last_dt,cur_dt)
+            if isempty(this.last_dt) || ~isequal(this.last_dt,cur_dt)%true %|| 
+%             if strcmp(this.options.Shapes,'rosen')
                 types = this.MUTypes;
                 ntypes = length(types);
                 this.APShapes = cell(1,length(types));
@@ -374,24 +421,33 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                         pi.step;
                     end
                 case 'precomp'
-                    sv = this.options.SarcoVersion;
+%                     sv = this.options.SarcoVersion;
                     % Else: "precomp" is set, so load & interpolate shapes
                     % for current time.
-                    datafile = fullfile(fm.DataDir,...
-                        sprintf('ShapeData_v%d.mat',sv));
-                    if exist(datafile,'file') ~= 2
-                        error('No precomputed data available. Run the %s script!',...
-                            fullfile(fm.DataDir,'ActionPotentialShape.m'));
-                    end
-                    d = load(datafile);
+%                     datafile = fullfile(fm.DataDir,...
+%                         sprintf('Shapes_v%d.mat',sv));
+%                     if exist(datafile,'file') ~= 2
+%                         error('No precomputed data available. Run the %s script!',...
+%                             fullfile(fm.DataDir,'ActionPotentialShape.m'));
+%                     end
+%                     d = load(datafile);
                     pi = ProcessIndicator('Interpolating %d action potential shapes...',...
                         ntypes,false,ntypes);
+                    mus = this.SignalData.mus;
                     for n = 1:ntypes
-                        % Get index of closest matching fibre type (could
-                        % be exact match!)
-                        [~, idx] = min(abs(d.fibretypes - types(n)));
-                        shape = d.Shapes{idx};
-                        times = d.Times{idx};
+                        mc = min(polyval(this.upperlimit_poly,types(n)),mean_current);
+                        mu = [types(n); mc];
+                        idx = Utils.findVecInMatrix(mus,mu);
+                        if isempty(idx)
+                            % Get index of closest matching fibre type (could
+                            % be exact match!)
+                            [~, idx] = min(Norm.L2(mus - mu));
+                            warning('No exact parameter match for precomputed shape found!');
+                            % Direct use of shape if direct match is found
+                            % - "hack" for the paper experiments 
+                        end
+                        shape = this.SignalData.S{idx,1};
+                        times = this.SignalData.ST{idx,1};
                         % Get absolute time span of shape
                         tspan = times(end)-times(1);
                         % Get that resolved by current time-step
@@ -405,12 +461,14 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                     % This is the rosenfalck' ap shape function
                     r = general.functions.Rosenfalck;
                     r.basemV = -80;
+                    r.xscale = 2.7; % Best in L2-sense
+%                     r.xscale = 2.6; % Best in Linf-sense
+                    r.A = 84;
+                    r.start_ms = 1.48;
                     rosenfalck = r.getFunction;
                     % Average ap shape goes up to 8ms
-                    z = 0:cur_dt:8;
+                    z = 0:cur_dt:11;
                     for n = 1:ntypes
-                        % Scale the rosenfalck function by two as the
-                        % function is defined over 0-15ms (too long)
                         this.APShapes{n} = rosenfalck(z);
                     end
                 end
@@ -454,23 +512,31 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                         nmu,false,nmu);
                     for idx = 1:nmu  
                         type = this.MUTypes(idx);
-                        [t,y] = m.simulate([type; mean_current], 1);
+                        mc = min(polyval(this.upperlimit_poly,type),mean_current);
+                        [t,y] = m.simulate([type; mc], 1);
                         APtimes = (y(2,2:end) > 40).*(y(2,1:end-1) <= 40);
                         this.MUFiringTimes{idx} = t(logical(APtimes));
                         pi.step;
                     end
                     pi.stop;
                 else
-                    datafile = fullfile(fm.DataDir,'FiringTimes.mat');
-                    if exist(datafile,'file') ~= 2
-                        error('No precomputed data available. Run the %s script!',...
-                            fullfile(fm.DataDir,'FiringTimes.m'));
-                    end
-                    d = load(datafile);
+%                     datafile = fullfile(fm.DataDir,'FiringTimes.mat');
+%                     if exist(datafile,'file') ~= 2
+%                         error('No precomputed data available. Run the %s script!',...
+%                             fullfile(fm.DataDir,'FiringTimes.m'));
+%                     end
+%                     d = load(datafile);
+                    mus = this.SignalData.mus;
                     for idx = 1:nmu
-                        type = repmat(this.MUTypes(idx),1,size(d.mus,2));
-                        [~,pos] = min(Norm.L2(type - d.mus(1,:)));
-                        this.MUFiringTimes{idx} = d.Times{pos};
+                        mc = min(polyval(this.upperlimit_poly,this.MUTypes(idx)),mean_current);
+                        mu = [this.MUTypes(idx); mc];
+                        pos = Utils.findVecInMatrix(mus,mu);
+                        if isempty(pos)
+                            type = repmat(mu,1,size(mus,2));
+                            [~,pos] = min(Norm.L2(type - mus));
+                            warning('No exact parameter match for precomputed firing time found!');
+                        end
+                        this.MUFiringTimes{idx} = this.SignalData.FT{pos};
                     end
                 end
                 this.last_mean_current = mean_current;
@@ -561,16 +627,14 @@ classdef RHS < dscomponents.ACompEvalCoreFun
         function initDynamicAmpPS(this, opts)
             if opts.DynamicPropagationSpeed || opts.DynamicAmplitudes
                 base = this.System.Model.DataDir;
-                datafile = fullfile(base,'amplitudes.mat');
+                datafile = fullfile(base,'AmplitudesKexp.mat');
                 s = load(datafile);
                 this.amp_xiscale = s.ximax;
                 this.amp_kexp = s.amp;
-                datafile = fullfile(base,'propagationspeed.mat');
+                datafile = fullfile(base,'PropagationspeedKexp.mat');
                 s = load(datafile);
                 this.ps_xiscale = s.ximax;
                 this.ps_kexp = s.ps;
-                s = load(models.motoneuron.Model.FILE_UPPERLIMITPOLY);
-                this.upperlimit_poly = s.upperlimit_poly;
             end
         end
         
@@ -684,6 +748,29 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                 for k=1:length(t)
                     this.prepareSimulation(mu(:,k));
                     fx(:,k) = this.evaluateComponents(pts, ends, idx, self, [], t(k), mu(:,k));
+                end
+            end
+        end
+    end
+    
+    methods(Static)
+        function verifyPrecompDataCompat(m)
+            base = models.emg.Model.DataDir;
+            s = load(fullfile(base,'mus'));
+            mus = s.mus;
+            nmu = size(mus,2);
+            
+            precomp_amp = load(fullfile(models.emg.RHS.PrecompDataDir,'precomp_amp.mat'));
+            
+            ft = load(fullfile(base,'FiringTimes'));
+            for k=121:nmu
+                mu = mus(:,k);
+                pos_ft = Utils.findVecInMatrix(ft.mus,mu);
+                pos_amp = Utils.findVecInMatrix(precomp_amp.mus,mu);
+                ftl = length(ft.Times{pos_ft});
+                ampl = length(precomp_amp.P{pos_amp});
+                if ftl ~= ampl
+                    error('Firing times (=%d) / Amplitudes (=%d) length mismatch',ftl,ampl);
                 end
             end
         end

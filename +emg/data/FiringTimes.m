@@ -2,6 +2,11 @@
 % within the emg model. This is optional, as the correct firing times for the
 % selected motor-units can be computed directly for the fibre types used
 % in each emg model.
+%
+% Note: For the experiments, this has not been used as the stand-alone
+% firing times sometimes (due to discrete ODE solvers) do not match the
+% firing times obtained via the direct computation of the full musclefibre
+% model
 clear classes;%#ok
 
 m = models.motoneuron.Model;

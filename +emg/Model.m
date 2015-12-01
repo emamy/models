@@ -188,12 +188,9 @@ classdef Model < models.BaseFullModel
             zlabel(ax,'\phi_i [mV]');
             pm.done;
             view(53,28);
-            surfacepos = reshape(1:size(y,1),sys.dim(1),sys.dim(2),[]);
-            surfacepos = surfacepos(:,:,end);
-            hlp = y(surfacepos(:),:)*10;
             %axis([0 this.Geo(2) 0 this.Geo(1) min(hlp(:)) max(hlp(:))]);
-            maxval = ceil(max(max(y(surfacepos,:))));
-            minval = floor(min(min(y(surfacepos,:))));
+            maxval = ceil(max(y(:)));
+            minval = floor(min(y(:)));
             axis([0 sys.Geo(2) 0 sys.Geo(1) minval maxval]);
             caxis([minval maxval]);
             % daspect([1 1 1]);
@@ -207,7 +204,7 @@ classdef Model < models.BaseFullModel
                 title(ax,sprintf('Surface EMG at time %gms',t(idx)));
                 colorbar;
                 colormap jet;
-                pause(.05);
+                pause(.005);
                 if ~ishandle(ax)
                     break;
                 end

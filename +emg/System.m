@@ -81,7 +81,10 @@ classdef System < models.BaseFirstOrderSystem
             this.f = models.emg.RHS(this);
             this.f.init(opts);
             
+            % Get diffusion matrix
             this.assembleA;
+            % Output of interest - surface of skin part
+            this.assembleC;
         end
         
         function assembleA(this)
@@ -121,6 +124,16 @@ classdef System < models.BaseFirstOrderSystem
             this.A = dscomponents.LinearCoreFun(A);
         end        
 
+        function assembleC(this)
+            surfacepos = reshape(1:this.NumTotalDofs,this.dim(1),this.dim(2),[]);
+            surfacepos = surfacepos(:,:,end);
+            C = speye(this.NumTotalDofs);
+            idx = true(1,this.NumTotalDofs);
+            idx(surfacepos) = false;
+            C(idx,:) = [];
+            this.C = dscomponents.LinearOutputConv(C);
+        end
+        
     end
     
     methods(Access=protected)

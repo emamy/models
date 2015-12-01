@@ -3,6 +3,10 @@ classdef DetailedVm < handle
     % defined parameters, to be used within the models.emg suite
     %
     
+    properties(Constant)
+        FullData = load(fullfile('/data/local/musclefibre','FullVms.mat'));
+    end
+    
     properties(SetAccess=private)
         submesh_idx;
         % musclefibre model for full simulations
@@ -26,29 +30,27 @@ classdef DetailedVm < handle
                 'JunctionN',1);
             mf.EnableTrajectoryCaching = true;
             this.musclefibremodel = mf;
-            
-            % Hack for 
-            mudir = fileparts(which('models.emg.Model'));
-            s = load(fullfile(mudir,'data','mus.mat'));
+            s = load(fullfile(models.emg.Model.DataDir,'mus.mat'));
             this.mus_precomp = s.mus;
-            
-            this.s = load('/data/local/musclefibre/precomp_Vms.mat');
         end
         
         function sig = computeSignal(this, t, mu)
             pos = Utils.findVecInMatrix(this.mus_precomp,mu);
-            if ~isempty(this.s)
-                if (t(2)-t(1) ~= this.s.t(2)-this.s.t(1))
-                    error('Incompatible time-steps. Please check.');
+            % Using fully pre-computed, pre-selected Vms signals
+            if ~isempty(this.FullData)
+                if (t(2)-t(1) ~= this.FullData.t(2)-this.FullData.t(1))
+                    warning('Incompatible time-steps. Please check.');
                 end
-                sig = this.s.Vms{pos}(:,1:length(t));
+                sig = this.FullData.Vms{pos}(:,1:length(t));
             else
+                % Load the appropriate file
                 if pos > 0
                     fprintf('Loading cached file ... ');
-                    s = load(sprintf('/data/local/musclefibre/Vm_%d.mat',pos));
+                    ss = load(fullfile(this.DataDir,sprintf('Vm_%d.mat',pos)));
                     fprintf('done!\n');
-                    fine_signal = s.Vm(:,1:2:2*length(t));
+                    fine_signal = ss.Vm(:,1:2:2*length(t));
                 else
+                    % Compute the effective signal (expensive!)
                     mf = this.musclefibremodel;
                     mf.T = t(end); % infer from passed parameters
                     mf.dt = t(2)-t(1);
