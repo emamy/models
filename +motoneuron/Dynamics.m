@@ -11,7 +11,7 @@ classdef Dynamics < dscomponents.ACoreFun
     % - \c Documentation http://www.agh.ians.uni-stuttgart.de/documentation/kermor/
     % - \c License @ref licensing
    
-    properties(Access=private)
+    properties(SetAccess=private)
         moto;
     end
     
@@ -24,11 +24,11 @@ classdef Dynamics < dscomponents.ACoreFun
         end
         
         function prepareSimulation(this, mu)
+            this.moto.setType(mu(1));
             if this.System.Model.FibreTypeDepMaxMeanCurrent
-                mu(2) = min(polyval(this.System.upperlimit_poly,mu(1)),mu(2));
+                mu(2) = this.moto.checkMeanCurrent(mu(2));
             end
             prepareSimulation@dscomponents.ACoreFun(this, mu);
-            this.moto.setType(mu(1));
         end
         
         function dy = evaluate(this, y, ~)

@@ -83,16 +83,6 @@ classdef Model < models.BaseFullModel
             cov_dr = std(dr)/mean(dr);
             freq = mean(dr);
         end
-        
-        function plotUpperLimitPoly(this)
-            ft = 0:.01:1;
-            maxmc = polyval(this.System.upperlimit_poly,ft);
-            d = models.motoneuron.ParamDomain;
-            ax = d.plot;
-            hold(ax,'on');
-            plot(ax,ft,maxmc,'b');
-            %plot(ax,ft,maxmc-1,'g');
-        end
     end
     
     methods

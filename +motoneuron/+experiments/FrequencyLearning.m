@@ -37,7 +37,7 @@ surf(ax2,FT,MC,HZ,'FaceColor','interp','EdgeColor','interp');
 axis(ax2,'tight');
 
 %% Init
-s = load(fullfile(basedir,'../','upperlimitpoly.mat'));
+s = load(models.motoneuron.Model.FILE_UPPERLIMITPOLY);
 maxv = polyval(s.upperlimit_poly,FT);
 valid = MC <= maxv;
 atd = data.ApproxTrainData([FT(valid) MC(valid)]',[],[]);

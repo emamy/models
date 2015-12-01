@@ -94,22 +94,6 @@ classdef MotorunitBaseSystem < models.BaseFirstOrderSystem
         HadPeak = false;
     end
     
-    properties(Access=private)
-        % The upper limit polynomial for maximum mean current dependent on
-        % the fibre type.
-        %
-        % This polynomial has been computed using the
-        % models.motoneuron.Model (which is also included here, but has
-        % been established as single model for speed and exemplatory
-        % purposes), where the fibre type and mean activation current along
-        % the 60Hz-contour have been used to fit a polynomial that yields
-        % the maximum mean input current for any fibre type.
-        %
-        % See also: models.motoneuron.Model.FibreTypeDepMaxMeanCurrent
-        % models.motoneuron.experiments.ParamDomainDetection
-        upperlimit_poly;
-    end
-    
     methods
         function this = MotorunitBaseSystem(model, options)
             % Call superclass constructor
@@ -124,10 +108,6 @@ classdef MotorunitBaseSystem < models.BaseFirstOrderSystem
             this.addParam('mean_current_factor', 3, 'Range', [0 9], 'Desired', 15);
             
             this.MaxTimestep = model.dt;
-            
-            % Load mean current limiting polynomial
-            s = load(models.motoneuron.Model.FILE_UPPERLIMITPOLY);
-            this.upperlimit_poly = s.upperlimit_poly;
             
             % Setup noise input
             ng = models.motoneuron.NoiseGenerator;
@@ -163,17 +143,15 @@ classdef MotorunitBaseSystem < models.BaseFirstOrderSystem
             % the fibre type, so that the frequency of 60Hz is not
             % exceeded.
             %
-            % See also: models.motoneuron.ParamDomainDetection upperlimit_poly
-            
+            % See also: models.motoneuron.ParamDomainDetection
             if this.SinglePeakMode
                 this.peakstart = false;
                 this.HadPeak = false;
                 s = this.Model.ODESolver;
                 s.odeopts.OutputFcn = @this.singlePeakModeOutputFcn;
             end
+            mu(2) = this.moto.checkMeanCurrent(mu(2));
             
-            % Limit mean current depending on fibre type
-            mu(2) = min(polyval(this.upperlimit_poly,mu(1)),mu(2));
             prepareSimulation@models.BaseFirstOrderSystem(this, mu, inputidx);
         end
         

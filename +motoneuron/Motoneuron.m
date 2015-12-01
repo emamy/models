@@ -1,45 +1,75 @@
 classdef Motoneuron < KerMorObject
-% Motoneuron: 
-%
-% @docupdate
-%
-% @author Daniel Wirtz @date 2014-09-24
-%
-% @new{0,7,dw,2014-09-24} Added this class.
-%
-% This class is part of the framework
-% KerMor - Model Order Reduction using Kernels:
-% - \c Homepage http://www.agh.ians.uni-stuttgart.de/research/software/kermor.html
-% - \c Documentation http://www.agh.ians.uni-stuttgart.de/documentation/kermor/
-% - \c License @ref licensing
+    % Motoneuron:
+    %
+    % @docupdate
+    %
+    % @author Daniel Wirtz @date 2014-09-24
+    %
+    % @new{0,7,dw,2014-09-24} Added this class.
+    %
+    % This class is part of the framework
+    % KerMor - Model Order Reduction using Kernels:
+    % - \c Homepage http://www.agh.ians.uni-stuttgart.de/research/software/kermor.html
+    % - \c Documentation http://www.agh.ians.uni-stuttgart.de/documentation/kermor/
+    % - \c License @ref licensing
     
     properties(Constant)
         Dims = 6;
     end
-
+    
     properties(SetAccess=private)
         Constants;
         Noise;
         FibreTypeNoiseFactors;
         JSparsityPattern;
         InitialValues;
+        
+        % The upper limit polynomial for maximum mean current dependent on
+        % the fibre type.
+        %
+        % This polynomial has been computed using the
+        % models.motoneuron.Model (which is also included here, but has
+        % been established as single model for speed and exemplatory
+        % purposes), where the fibre type and mean activation current along
+        % the 60Hz-contour have been used to fit a polynomial that yields
+        % the maximum mean input current for any fibre type.
+        %
+        % See also: models.motoneuron.Model.FibreTypeDepMaxMeanCurrent
+        % models.motoneuron.experiments.ParamDomainDetection
+        upperlimit_poly;
     end
     
     properties(Access=private)
         % Number of types
         nt;
+        fibretypes;
     end
     
     methods
         
-         function this = Motoneuron
-             this = this@KerMorObject;
-             % Initializes the Sparsity pattern of the Jacobian
-             i = [1,1,2,2,2,2,2,2,3,3,4,4,5,5,6,6];
-             j = [1,2,1,2,3,4,5,6,2,3,2,4,2,5,2,6];
-             this.JSparsityPattern = logical(sparse(i,j,true,6,6));
-             this.InitialValues = zeros(6,1);
-         end
+        function this = Motoneuron
+            this = this@KerMorObject;
+            % Initializes the Sparsity pattern of the Jacobian
+            i = [1,1,2,2,2,2,2,2,3,3,4,4,5,5,6,6];
+            j = [1,2,1,2,3,4,5,6,2,3,2,4,2,5,2,6];
+            this.JSparsityPattern = logical(sparse(i,j,true,6,6));
+            this.InitialValues = zeros(6,1);
+            
+            % Load mean current limiting polynomial
+            s = load(models.motoneuron.Model.FILE_UPPERLIMITPOLY);
+            this.upperlimit_poly = s.upperlimit_poly;
+        end
+        
+        function mean_current = checkMeanCurrent(this, mean_current, ft)
+            % Limits mean current depending on fibre type
+            %
+            % See also: upperlimit_poly
+            if nargin < 3
+                ft = this.fibretypes;
+            end
+            mean_current = min(polyval(this.upperlimit_poly,ft),...
+                mean_current);
+        end
         
         function dy = dydt(this, y, ~)
             c = this.Constants;
@@ -62,7 +92,7 @@ classdef Motoneuron < KerMorObject
         
         function J = Jdydt(this, y, ~, typeidx)
             c = this.Constants(:,typeidx);
-            J = sparse(6,6);    
+            J = sparse(6,6);
             J(1,1) = -(c(1) + c(5))/c(7);
             J(2,1) = c(5)/c(8);
             J(1,2) = c(5)/c(7);
@@ -87,7 +117,9 @@ classdef Motoneuron < KerMorObject
             % Parameters:
             % fibretypes: Values are assumed to be in [0,1] @type
             % rowvec<double>
-
+            
+            this.fibretypes = fibretypes;
+            
             %% Assemble constants
             % Membrane capacitance (NOT to be confused with Cm of the
             % sarcomere model!)
@@ -144,6 +176,24 @@ classdef Motoneuron < KerMorObject
             copy.Noise = this.Noise;
             copy.FibreTypeNoiseFactors = this.FibreTypeNoiseFactors;
             copy.nt = this.nt;
+        end
+        
+        function value = getMaxMeanCurrents(this, ft)
+            if nargin < 2
+                ft = this.fibretypes;
+            end
+            value = this.checkMeanCurrent(...
+                9*ones(1,length(ft)));
+        end
+        
+        function plotUpperLimitPoly(this)
+            ft = 0:.01:1;
+            maxmc = polyval(this.upperlimit_poly,ft);
+            d = models.motoneuron.ParamDomain;
+            ax = d.plot;
+            hold(ax,'on');
+            plot(ax,ft,maxmc,'b');
+            %plot(ax,ft,maxmc-1,'g');
         end
     end
     
