@@ -6,7 +6,7 @@ classdef Constraint < dscomponents.ACoreFun
         ComputeUnassembled = false;
     end
     
-    properties(Access=private)
+    properties(Access=protected)
         % Reference to the full system
         fsys;
     end
