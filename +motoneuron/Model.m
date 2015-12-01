@@ -74,14 +74,9 @@ classdef Model < models.BaseFullModel
         end
         
         function [peaks, cov_isi, cov_dr, freq] = analyze(~, t, y)
-            p = models.musclefibre.experiments.Processor;
+            p = SignalAnalyzer;
             p.minV = 55;
-            peaks = p.getPeakIdx(t, y(2,:));
-            pt = diff(t(peaks));
-            cov_isi = std(pt)/mean(pt);
-            dr = 1./(pt/1000);
-            cov_dr = std(dr)/mean(dr);
-            freq = mean(dr);
+            [peaks, cov_isi, cov_dr, freq] = p.analyze(t, y(2,:));
         end
     end
     

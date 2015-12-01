@@ -39,7 +39,7 @@ PCPool.close;
 
 %%
 nmu = size(mus,2);
-p = models.musclefibre.experiments.Processor;
+p = SignalAnalyzer;
 p.minV = 55;
 cov = NaN(1,nmu);
 np = cov;
