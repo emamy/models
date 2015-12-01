@@ -85,7 +85,11 @@ classdef MusclePlotter < handle
             view(h, this.GeoView);
             hold(h,'on');
 
-            for loop = 1:100 
+            looplen = 100;
+            if isscalar(t)
+                looplen = 1;
+            end
+            for loop = 1:looplen;
             for ts = 1:length(t)
                 % Quit if figure has been closed
                 if ~ishandle(h)

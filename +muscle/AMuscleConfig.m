@@ -171,6 +171,15 @@ classdef AMuscleConfig < fem.AFEMConfig
             alpha = ramp.getFunction;
         end
         
+        function func = getAnisoMuscleLaw(~, param1, param2)
+            func = models.muscle.functions.MarkertLawOriginal(param1, param2);
+        end
+        
+        function func = getAnisoTendonLaw(~, param1, param2)
+            func = general.functions.CubicToLinear(param1, param2);
+%             func = general.functions.MarkertLaw(1.3895e+07,11.1429,1.637893706954065e+05);
+        end
+        
         function tmr = getTendonMuscleRatio(~, ~)
             % Returns the [0,1] ratio between tendon and muscle at all
             % gauss points of all elements

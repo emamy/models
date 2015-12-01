@@ -250,16 +250,15 @@ classdef Model < models.BaseFullModel
             pm.LeaveOpen = true;
             f = this.System.f;
             
-            % Simply use muscle parameter values
-            b1 = mu(1);
-            d1 = mu(2);
             warning('Using muscle parameters only (ignoring tendon)');
             
             [lambda, alpha] = meshgrid(.02:.02:1.5,0:.01:1);
             
             fl = f.ForceLengthFun(lambda/mu(14));
-            active = mu(13)./lambda.*fl.*alpha;% + 1*max(0,(lambda-1)).*alpha;
-            passive = max(0,(b1./lambda.^2).*(lambda.^d1-1));
+            active = mu(13)./lambda.*fl.*alpha;
+            func = this.Config.getAnisoMuscleLaw(mu(5), mu(6));
+            func = func.getFunction;
+            passive = func(lambda);
             
             h = pm.nextPlot('aniso_pressure',sprintf('Pressure in fibre direction for model %s',this.Name),'Stretch \lambda','Activation \alpha');
             surf(h,lambda,alpha,active+passive,'EdgeColor','k','FaceColor','interp');

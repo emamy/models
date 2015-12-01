@@ -116,12 +116,11 @@ classdef Dynamics < dscomponents.ACompEvalCoreFun
             mc.setForceLengthFun(this);
             
             % Muscle anisotropic passive law
-            mlfg = models.muscle.functions.MarkertLawOriginal(mu(5),mu(6));
+            mlfg = mc.getAnisoMuscleLaw(mu(5),mu(6));
             [this.AnisoPassiveMuscle, this.AnisoPassiveMuscleDeriv] = mlfg.getFunction;
             
             % Tendon anisotropic passive law
-            mlfg = general.functions.CubicToLinear(mu(7),mu(8));
-%             mlfg = general.functions.MarkertLaw(1.3895e+07,11.1429,1.637893706954065e+05);
+            mlfg = mc.getAnisoTendonLaw(mu(7),mu(8));
             [this.AnisoPassiveTendon, this.AnisoPassiveTendonDeriv] = mlfg.getFunction;
 
             % Get the law function handles that also take b,d as arguments.
