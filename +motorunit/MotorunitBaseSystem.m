@@ -131,11 +131,11 @@ classdef MotorunitBaseSystem < models.BaseFirstOrderSystem
             % Sets the configuration for the upcoming simulation of the
             % model.
             setConfig@models.BaseFirstOrderSystem(this, mu, inputidx);
-             % Precompute motoneuron/sarcomere constants
+             
+            % Precompute motoneuron/sarcomere constants
             this.sarco.setType(mu(1));
             this.moto.setType(mu(1));
             this.noiseGen.setFibreType(mu(1));
-            %this.MaxTimestep = this.Model.dt*100;
         end
         
         function prepareSimulation(this, mu, inputidx)
@@ -150,8 +150,8 @@ classdef MotorunitBaseSystem < models.BaseFirstOrderSystem
                 s = this.Model.ODESolver;
                 s.odeopts.OutputFcn = @this.singlePeakModeOutputFcn;
             end
-            mu(2) = this.moto.checkMeanCurrent(mu(2));
-            
+            % Check max current
+            mu(2) = this.moto.checkMeanCurrent(mu(2),mu(1));
             prepareSimulation@models.BaseFirstOrderSystem(this, mu, inputidx);
         end
         
