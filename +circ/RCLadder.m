@@ -50,6 +50,8 @@ classdef RCLadder < models.BaseFullModel
             this.System = models.circ.RCLadderSys(this);
             
             % Only train with first input!
+            this.DefaultInput = 1;
+            this.DefaultMu = [];
             this.TrainingInputs = [2 3];
             
             this.Sampler = [];

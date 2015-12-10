@@ -46,14 +46,25 @@ classdef RHS < dscomponents.ACompEvalCoreFun
         
         % velocity of action potentials propagating along the muscle
         % fibres in m/s (=> 10cm/ms)
-        APvelocity = 1.8704;
+        %
+        % This value has been computed using the average over all
+        % velocities measured in simulations of the 360 param set.
+        %
+        % Previous value: 1.8704
+        APvelocity = 1.5654;
         
         % The time shift for firing time to shape placement.
         %
         % 2.5 is the offset for the precomputed shapes from start to peak,
         % and -.3 ms the time shift between the peak of the motoneuron
         % signal and the peak of the action potential
-        FTShift = 2.5-.3;
+        %
+        % Improvement:
+        % Have extra script that determines the best FT offset with respect
+        % to various error measures. See the S2bFitFTOffset script.
+        %
+        % See also: S2bFitFTOffset
+        FTShift = 2.25;
     end
     
     properties(SetAccess=private)
@@ -87,7 +98,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
     methods
         function this = RHS(sys)
             this = this@dscomponents.ACompEvalCoreFun(sys);
-            this.rs = RandStream('mt19937ar','Seed',24247247);
+            this.rs = RandStream('mt19937ar','Seed',sys.Model.Options.RandSeed);
             s = load(models.motoneuron.Model.FILE_UPPERLIMITPOLY);
             this.upperlimit_poly = s.upperlimit_poly;
         end
@@ -229,6 +240,8 @@ classdef RHS < dscomponents.ACompEvalCoreFun
             % sense within the ParamDomain.
             mc = min(polyval(this.upperlimit_poly,ftype),mc);
             mu = [ftype; mc];
+            precomp_mu_pos = Utils.findVecInMatrix(...
+                        this.SignalData.mus,mu);
             if this.fullshapes
                 sig = this.dvm.computeSignal(t, mu);
                 Vm = zeros(2*xdim-1,tlen);
@@ -236,107 +249,123 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                 Vm(xdim:-1:1,:) = sig;
             else
                 o = this.options;    
+                shorten_dyn = strcmp(o.Shapes,'shorten_dynamic');
                 
-                base = this.APShapes_misc(1,muidx);
-                shape = this.APShapes{muidx};
-                shapelen = length(shape);
-
                 % Get firing times and remove those that fire beyond
                 % the max requested times
                 ft = this.MUFiringTimes{muidx}-this.FTShift;
-                ft(ft > max(t)) = [];
+                if ~isempty(ft)
+                    ft(ft > max(t)) = [];
+                    if shorten_dyn
+                        si = this.SignalData.SI{precomp_mu_pos}(1:length(ft));
+                    else
+                        si = ones(size(ft));
+                    end
+                    base = reshape(this.APShapes_misc(1,muidx,si),1,[]);
 
-                % Dynamic amplitudes
-                if o.DynamicAmplitudes
-                    % S is the scaling of mu_1,mu_2,t arguments to the learned
-                    % expansion - the time has a different order of magnitude
-                    % and is hence scaled so that all arguments are of equal
-                    % importance to the expansion (more stable learning)
-%                     s = this.amp_xiscale;
-                    % Arguments: fibre_type, mean_current, time
-                    % Important here is to take the speed and amplitudes
-                    % for the time instant the junction fire signal was
-                    % received, as propagating potentials would have decreasing
-                    % amplitudes over time even though the signal would be the
-                    % same
-%                     xi = [repmat(mu./s(1:2),1,length(ft))
-%                           ft/s(3)];
-                    % Get learned amplitudes!
-%                     amp = this.amp_kexp.evaluate(xi);
-                    precomp_mu_pos = Utils.findVecInMatrix(...
-                        this.SignalData.mus,mu);
-                    amp = this.SignalData.A{precomp_mu_pos};
-                    amp = amp(1:length(ft));
-                    amp_fac = (amp-base)/this.APShapes_misc(2,muidx);
-                else
-                    amp_fac = ones(size(ft));
-                end
-                % Dynamic propagation speeds
-                if o.DynamicPropagationSpeed
-                    % See o.DynamicAmplitudes case for comments
-%                     s = this.ps_xiscale;
-%                     xi = [repmat([ftype; mc]./s(1:2),1,length(ft))
-%                           ft/s(3)];
-                    % Get learned velocities!
-%                     v2 = this.ps_kexp.evaluate(xi)/10;
-                    precomp_mu_pos = Utils.findVecInMatrix(...
-                        this.SignalData.mus,mu);
-                    velos = this.SignalData.V{precomp_mu_pos};
-                    v = velos(1:length(ft))/10;
-                else
-                    v = this.APvelocity/10*ones(size(ft));
-                end
-                sys = this.System;
-                dx = sys.h(1);
-                xpos = (0:xdim-1)*dx;
-                % Initialize the Vm matrix with double spatial size, so that
-                % the signals can be placed in both directions on the fibre
-                Vm = base*ones(2*xdim-1,tlen);
-                for fidx = 1:length(ft)
-                    % Scale shape by current ft amplitude
-                    shape_amp = (shape-base)*amp_fac(fidx)+base;
-                    % Get the amount of time passed until the signal reaches
-                    % each sarcomere (including the local one at 0)
-                    shifted_ft = xpos / v(fidx);
-                    
-                    % Code speedup: The min operation on 100000 timesteps
-                    % really cracks the runtime - hence we find the time
-                    % interval at which the shifted time indices will occur
-                    % and only search within that.
-                    % Step 1: Limit search to times later or equal to the firing
-                    % time
-                    startidx = max(1,find(ft(fidx) < t, 1)-1);
-                    % Step 2: Find the maximum time to look for and stop
-                    % searching after that time
-                    endidx = find(ft(fidx)+shifted_ft(end) < t, 1);
-                    % If there is no smaller time, we are at the end of the
-                    % time interval
-                    if isempty(endidx)
-                        endidx = tlen;
+                    % Dynamic amplitudes
+                    if o.DynamicAmplitudes
+                        % S is the scaling of mu_1,mu_2,t arguments to the learned
+                        % expansion - the time has a different order of magnitude
+                        % and is hence scaled so that all arguments are of equal
+                        % importance to the expansion (more stable learning)
+    %                     s = this.amp_xiscale;
+                        % Arguments: fibre_type, mean_current, time
+                        % Important here is to take the speed and amplitudes
+                        % for the time instant the junction fire signal was
+                        % received, as propagating potentials would have decreasing
+                        % amplitudes over time even though the signal would be the
+                        % same
+    %                     xi = [repmat(mu./s(1:2),1,length(ft))
+    %                           ft/s(3)];
+                        % Get learned amplitudes!
+    %                     amp = this.amp_kexp.evaluate(xi);
+                        amp = this.SignalData.A{precomp_mu_pos};
+                        amp = amp(1:length(ft));
+                        ratio = reshape(this.APShapes_misc(2,muidx,si),1,[]);
+                        amp_fac = (amp-base)./ratio;
+                    else
+                        amp_fac = ones(size(ft));
                     end
-                    % Select only the relevant times to look within (see
-                    % step 1+2 above)
-                    tslice = t(startidx:endidx);
-                    % Get pairwise difference and find absolute minima =
-                    % matching locations
-                    pdiff = bsxfun(@minus,tslice-ft(fidx),shifted_ft');
-                    [~, shifted_tidx] = min(abs(pdiff),[],2);
-                    shifted_tidx = shifted_tidx + startidx-1;
-                    % Get pairwise difference and find absolute minima =
-                    % matching locations
-                    % - original code - shorter but MUCH slower
-%                     pdiff = bsxfun(@minus,t-ft(fidx),shifted_ft');
-%                     [~, shifted_tidx] = min(abs(pdiff),[],2);
-                    for xidx = 1:xdim
-                        % Detect how many shape time-steps can be inserted
-                        % (might go over the time-index)
-                        shapesteps = min(shapelen,tlen-shifted_tidx(xidx));
-                        % Set the shapes from center (=xdim) to both sides
-                        Vm(xdim+xidx-1,shifted_tidx(xidx)+(1:shapesteps)) = ...
-                            shape_amp(1:shapesteps);
-                        Vm(xdim-xidx+1,shifted_tidx(xidx)+(shapesteps:-1:1)) = ...
-                            shape_amp(shapesteps:-1:1);
+                    % Dynamic propagation speeds
+                    if o.DynamicPropagationSpeed
+                        % See o.DynamicAmplitudes case for comments
+    %                     s = this.ps_xiscale;
+    %                     xi = [repmat([ftype; mc]./s(1:2),1,length(ft))
+    %                           ft/s(3)];
+                        % Get learned velocities!
+    %                     v2 = this.ps_kexp.evaluate(xi)/10;
+                        velos = this.SignalData.V{precomp_mu_pos};
+                        v = velos(1:length(ft))/10;
+                    else
+                        v = this.APvelocity/10*ones(size(ft));
                     end
+                    sys = this.System;
+                    dx = sys.h(1);
+                    xpos = (0:xdim-1)*dx;
+                    % Initialize the Vm matrix with double spatial size, so that
+                    % the signals can be placed in both directions on the fibre
+                    Vm = interp1(ft,base,t,'nearest','extrap');
+                    Vm = repmat(Vm,2*xdim-1,1);
+
+                    for fidx = 1:length(ft)
+                        % For shorten "precomp" shapes, we have multiple shapes
+                        % depending on the simulation time. 
+                        if shorten_dyn
+                            shape = this.APShapes{muidx,this.SignalData.SI{precomp_mu_pos}(fidx)};
+                        else
+                            % Else case: rosenfalck shapes
+                            shape = this.APShapes{muidx};
+                        end
+                        shapelen = length(shape);
+
+                        % Scale shape by current ft amplitude
+                        shape_amp = (shape-base(fidx))*amp_fac(fidx)+base(fidx);
+                        % Get the amount of time passed until the signal reaches
+                        % each sarcomere (including the local one at 0)
+                        shifted_ft = xpos / v(fidx);
+
+                        % Code speedup: The min operation on 100000 timesteps
+                        % really cracks the runtime - hence we find the time
+                        % interval at which the shifted time indices will occur
+                        % and only search within that.
+                        % Step 1: Limit search to times later or equal to the firing
+                        % time
+                        startidx = max(1,find(ft(fidx) < t, 1)-1);
+                        % Step 2: Find the maximum time to look for and stop
+                        % searching after that time
+                        endidx = find(ft(fidx)+shifted_ft(end) < t, 1);
+                        % If there is no smaller time, we are at the end of the
+                        % time interval
+                        if isempty(endidx)
+                            endidx = tlen;
+                        end
+                        % Select only the relevant times to look within (see
+                        % step 1+2 above)
+                        tslice = t(startidx:endidx);
+                        % Get pairwise difference and find absolute minima =
+                        % matching locations
+                        pdiff = bsxfun(@minus,tslice-ft(fidx),shifted_ft');
+                        [~, shifted_tidx] = min(abs(pdiff),[],2);
+                        shifted_tidx = shifted_tidx + startidx-1;
+                        % Get pairwise difference and find absolute minima =
+                        % matching locations
+                        % - original code - shorter but MUCH slower
+    %                     pdiff = bsxfun(@minus,t-ft(fidx),shifted_ft');
+    %                     [~, shifted_tidx] = min(abs(pdiff),[],2);
+                        for xidx = 1:xdim
+                            % Detect how many shape time-steps can be inserted
+                            % (might go over the time-index)
+                            shapesteps = min(shapelen,tlen-shifted_tidx(xidx));
+                            % Set the shapes from center (=xdim) to both sides
+                            Vm(xdim+xidx-1,shifted_tidx(xidx)+(1:shapesteps)) = ...
+                                shape_amp(1:shapesteps);
+                            Vm(xdim-xidx+1,shifted_tidx(xidx)+(shapesteps:-1:1)) = ...
+                                shape_amp(shapesteps:-1:1);
+                        end
+                    end
+                else
+                    Vm = -80*ones(2*xdim-1,tlen);
                 end
             end
         end
@@ -404,7 +433,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
 %             if strcmp(this.options.Shapes,'rosen')
                 types = this.MUTypes;
                 ntypes = length(types);
-                this.APShapes = cell(1,length(types));
+                this.APShapes = cell(length(types),1);
                 
                 % If shapemodel is set, we have the "actual" mode.
                 switch this.options.Shapes
@@ -420,7 +449,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                         %this.APShapes{n} = interp1(times, shape, ltimes, 'pchip', shape(1));
                         pi.step;
                     end
-                case 'precomp'
+                case {'shorten_fixed','shorten_dynamic'}
 %                     sv = this.options.SarcoVersion;
                     % Else: "precomp" is set, so load & interpolate shapes
                     % for current time.
@@ -446,14 +475,23 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                             % Direct use of shape if direct match is found
                             % - "hack" for the paper experiments 
                         end
-                        shape = this.SignalData.S{idx,1};
-                        times = this.SignalData.ST{idx,1};
-                        % Get absolute time span of shape
-                        tspan = times(end)-times(1);
-                        % Get that resolved by current time-step
-                        ltimes = 0:cur_dt:tspan;
-                        % Interpolate on local time grid
-                        this.APShapes{n} = interp1(times, shape, ltimes, 'pchip', shape(1));
+                        if strcmp(this.options.Shapes,'shorten_fixed')
+                            nshapes = 1;
+                        else
+                            nshapes = size(this.SignalData.S,2);
+                        end
+                        for sn = 1:nshapes
+                            shape = this.SignalData.S{idx,sn};
+                            if ~isempty(shape)
+                                times = this.SignalData.ST{idx,sn};
+                                % Get absolute time span of shape
+                                tspan = times(end)-times(1);
+                                % Get that resolved by current time-step
+                                ltimes = 0:cur_dt:tspan;
+                                % Interpolate on local time grid
+                                this.APShapes{n,sn} = interp1(times, shape, ltimes, 'pchip', shape(1));
+                            end
+                        end
                         pi.step;
                     end
                     pi.stop;
@@ -461,8 +499,12 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                     % This is the rosenfalck' ap shape function
                     r = general.functions.Rosenfalck;
                     r.basemV = -80;
-                    r.xscale = 2.7; % Best in L2-sense
+                    % Fit with only first shorten shape:
+%                     r.xscale = 2.7; % Best in L2-sense
 %                     r.xscale = 2.6; % Best in Linf-sense
+                    % Fit with dynamic shorten shapes:
+%                     r.xscale = 2.3; % Best in L2-sense
+                    r.xscale = 3.1; % Best in Linf-sense
                     r.A = 84;
                     r.start_ms = 1.48;
                     rosenfalck = r.getFunction;
@@ -476,11 +518,15 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                 % Postprocessing (for dynamic shape amplitudes)
                 this.APShapes_misc = zeros(2,ntypes);
                 for n = 1:ntypes
-                    sh = this.APShapes{n};
-                    % Compute offset and reference amplitude
-                    base = min(sh);
-                    this.APShapes_misc(1,n) = base;
-                    this.APShapes_misc(2,n) = max(sh-base);
+                    for sn = 1:size(this.APShapes,2)
+                        sh = this.APShapes{n,sn};
+                        if ~isempty(sh)
+                            % Compute offset and reference amplitude
+                            base = min(sh);
+                            this.APShapes_misc(1,n,sn) = base;
+                            this.APShapes_misc(2,n,sn) = max(sh-base);
+                        end
+                    end
                 end
                 this.last_dt = cur_dt;
             end
@@ -574,7 +620,7 @@ classdef RHS < dscomponents.ACompEvalCoreFun
             end
             if nargin < 4
                 % Daniel: radii = [norm(geo) norm(geo)*(this.rs.rand(1,number-1)*.5 + .1)];
-                radii=norm(geo(2:3))*sqrt(exp(types * log(100))/100);
+                radii=norm(geo(2:3))*sqrt(exp(abs(types-.5) * log(100))/100);
             else
                 if isscalar(radii)
                     radii = radii*ones(1,num);
@@ -592,11 +638,11 @@ classdef RHS < dscomponents.ACompEvalCoreFun
             % outside the radius around the circle is set to zero.
             h = this.System.h;
             d = this.dims;
-            sel = zeros(d(2),d(3),num);
-            [X,Y] = meshgrid(0:h(3):geo(3),0:h(2):geo(2));
+            sel = zeros(d(3),d(2),num);
+            [Y,Z] = meshgrid(0:h(2):geo(2),0:h(3):geo(3));
             for i=1:num
-                rand = this.rs.rand(d(2),d(3));
-                in_circle = sqrt((X-centers(1,i)).^2 + (Y-centers(2,i)).^2) < radii(i);
+                rand = this.rs.rand(d(3),d(2));
+                in_circle = sqrt((Y-centers(1,i)).^2 + (Z-centers(2,i)).^2) < radii(i);
                 rand(~in_circle) = 0;
                 sel(:,:,i) = rand;
             end
@@ -751,28 +797,5 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                 end
             end
         end
-    end
-    
-    methods(Static)
-        function verifyPrecompDataCompat(m)
-            base = models.emg.Model.DataDir;
-            s = load(fullfile(base,'mus'));
-            mus = s.mus;
-            nmu = size(mus,2);
-            
-            precomp_amp = load(fullfile(models.emg.RHS.PrecompDataDir,'precomp_amp.mat'));
-            
-            ft = load(fullfile(base,'FiringTimes'));
-            for k=121:nmu
-                mu = mus(:,k);
-                pos_ft = Utils.findVecInMatrix(ft.mus,mu);
-                pos_amp = Utils.findVecInMatrix(precomp_amp.mus,mu);
-                ftl = length(ft.Times{pos_ft});
-                ampl = length(precomp_amp.P{pos_amp});
-                if ftl ~= ampl
-                    error('Firing times (=%d) / Amplitudes (=%d) length mismatch',ftl,ampl);
-                end
-            end
-        end
-    end
+    end    
 end
