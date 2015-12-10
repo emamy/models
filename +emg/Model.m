@@ -14,15 +14,7 @@ classdef Model < models.BaseFullModel
     properties(Constant)
         DataDir = fullfile(fileparts(mfilename('fullpath')),'data');
     end
-    
-    properties
-        % Seed that can be used by random number generator instances in order to enable result
-        % reproduction.
-        %
-        % @type int @default 1
-        RandSeed = 1;
-    end
-    
+        
     properties(Dependent)
         % Position (index) of the neuromuscular junction of each fibre. By
         % default randomly anywhere on the fibres.
@@ -42,15 +34,18 @@ classdef Model < models.BaseFullModel
             % width, muscle height and height of the fat/skin layer (in cm). If
             % there are only 3 entries, skinheight is set to zero
             % Dimension of the discretization in all 3 dimensions.
-            
-            rs = RandStream('mt19937ar','Seed',12345);
-            
             i = inputParser;
+            i.addParameter('RandSeed',1);
+            i.KeepUnmatched = true;
+            i.parse(varargin{:});
+            opts = i.Results;
+            rs = RandStream('mt19937ar','Seed',opts.RandSeed);
+            
             i.addParameter('Dim',[40;20;13],@(v)numel(v)==3);
             i.addParameter('Geo',0.1*[40;20;10;3],@(v)numel(v)==3 || numel(v)==4);
             i.addParameter('MUTypes',[0 rs.rand(1,3) 1]); % 5 types by default
-            i.addParameter('Shapes','precomp',...
-                @(v)any(strcmp(v,{'actual','precomp','rosen','full'})));
+            i.addParameter('Shapes','shorten_dynamic',...
+                @(v)any(strcmp(v,{'actual','shorten_fixed','shorten_dynamic','rosen','full'})));
             i.addParameter('FiringTimes','precomp',@(v)any(strcmp(v,{'actual','precomp'})));
             % The sarcomere implementation version for computation of
             % shorten's action potential shapes
@@ -214,8 +209,8 @@ classdef Model < models.BaseFullModel
             end
         end
         
-        function plotMuscleConfiguration(this)
-            this.plotMUcrosssection;
+        function plotMuscleConfiguration(this, varargin)
+            this.plotMUcrosssection([],varargin{:});
             mg = this.System.Geo;
             fprintf('The muscle is %gcm long, %gcm wide and %gcm high.\n',mg(1),mg(2),mg(3));
             if (mg(4) ~= 0)
@@ -277,65 +272,68 @@ classdef Model < models.BaseFullModel
             hold off
         end
         
-        function plotMUcrosssection(this, numbers)
+        function plotMUcrosssection(this, numbers, pm)
             % plots the motor unit distribution over muscle cross section.
             % Musclefibres of the same motor unit have the same color and
             % marker.
             
+            if nargin < 3
+                pm = PlotManager;
+                pm.LeaveOpen = true;
+            end
             rhs = this.System.f;
             nmu = length(rhs.MUTypes);
-            if nargin < 2  % plot all motor units
+            if nargin < 2 || isempty(numbers) % plot all motor units
                 numbers = 1:nmu;
             end
             
             sys = this.System;
             geo = sys.Geo;
-            pos=cell(1,nmu);
-            for i=1:sys.dim(2)
-                for j=1:sys.zdim_m
-                    pos{rhs.MUGeoTypeIdx(i,j)}=[pos{rhs.MUGeoTypeIdx(i,j)},[i;j]];
-                end
-            end
-            figure
+            ax = pm.nextPlot('mu_crosssection',...
+                'Motor Unit Distribution over Muscle Cross Section','y [cm]','z [cm]');
             % frames for body region
             if geo ~= 0
                 X = [0, 0, geo(2), geo(2), 0];
                 Y = [geo(3), geo(3)+geo(4), ...
                     geo(3)+ geo(4), geo(3), geo(3)];
-                patch(X', Y', [0;0;0;0;0], 'FaceColor',[0.9 0.9 .9])
+                patch(X', Y', [0;0;0;0;0], 'FaceColor',[0.9 0.9 .9],'Parent',ax);
             end
-            hold on
+            hold(ax,'on');
             
             ls = LineSpecIterator(length(numbers),1000);
             for num = numbers
-                if isempty(pos{num})
-                    continue;
-                end
                 col = ls.nextColor;
-                plot((pos{num}(1,:)-1)*sys.h(2),(pos{num}(2,:)-1)*sys.h(3),...
-                    '.', 'Marker', ls.nextMarkerStyle, 'MarkerEdgeColor', col, 'LineWidth', 1);
-                if ~isempty(rhs.MUCenters) && nmu > 1
-                    plotCircle(rhs.MUCenters(:,num),rhs.MURadii(num));
-                end
+                plotCircle(rhs.MUCenters(:,num),rhs.MURadii(num));
             end
-            title('Motor Unit Distribution over Muscle Cross Section');
-            xlabel('y-direction [cm]');
-            ylabel('z-direction [cm]');
-            axis([0,geo(2), 0,geo(3)+geo(4)])
-            daspect([1 1 1]);
-            hold off
+            mus = [{'Fat layer'} sprintfc('\\tau=%g',rhs.MUTypes)];
+            [~,lh] = legend(mus{:},'Location','NorthEastOutside');
+            lines = findobj(lh,'Type','line');
+            
+            ls = LineSpecIterator(length(numbers),1000);
+            for num = numbers
+                [i,j] = find(rhs.MUGeoTypeIdx' == num);
+                ms = ls.nextMarkerStyle;
+                col = ls.nextColor;
+                if ~isempty(i)
+                    plot(ax,(i-1)*sys.h(2),(j-1)*sys.h(3),...
+                        '.', 'Marker', ms, 'MarkerEdgeColor', col, 'LineWidth', 1);                
+                end
+                lines(2*num).Marker = ms;
+            end
+            axis(ax,[0,geo(2), 0,geo(3)+geo(4)]);
+            daspect(ax,[1 1 1]);
             
             function plotCircle(cent, rad)
-                dphi = 0.01;
+                dphi = 0.001;
                 phi = 0:dphi:2*pi;
-                x = cent(1) + rad*cos(phi);
-                y = cent(2) + rad*sin(phi);
+                y = cent(1) + rad*cos(phi);
+                z = cent(2) + rad*sin(phi);
                 if geo(4) > 0
-                    idx = logical(y <= geo(3)*1.01);
-                    x = x(idx);
+                    idx = logical(z <= geo(3)*1.001);
                     y = y(idx);
+                    z = z(idx);
                 end
-                plot(x,y,'-','Color',col);
+                plot(ax,y,z,'-','Color',col);
             end
         end
         

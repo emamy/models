@@ -1,4 +1,4 @@
-classdef DetailedVm < handle
+classdef DetailedVm < KerMorObject
     %VMGENERATOR A separate class used to compute detailed Vm signals for
     % defined parameters, to be used within the models.emg suite
     %
