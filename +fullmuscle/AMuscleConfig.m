@@ -39,7 +39,7 @@ classdef AMuscleConfig < models.muscle.AMuscleConfig
         
         function configureModel(this, model)
             configureModel@models.muscle.AMuscleConfig(this, model);
-            this.FibreTypes = this.getFibreTypes;
+            
 %             nft = length(ft);
             
 %             fe = this.PosFE;
@@ -52,34 +52,46 @@ classdef AMuscleConfig < models.muscle.AMuscleConfig
             this.SpindlePositions = this.getSpindlePos;
         end
         
-        function configureModelFinal(this)
-            configureModelFinal@models.muscle.AMuscleConfig(this);
+%         function configureModelFinal(this)
+%             configureModelFinal@models.muscle.AMuscleConfig(this);
+%         end
+        
+        function u = getInputs(this)
+            % Returns the inputs `u(t)` of the model, if neumann boundary
+            % conditions are used
+            %
+            % this.Model can be used to get access to the model this
+            % configuration is applied to.
+            %
+            % Return values:
+            % u: The cell array of input functions to use within this
+            % model. @type cell @default {@(t)1}
             
-            ftw = this.getFibreTypeWeights;
+            % First row is neumann input
+            u{1,1} = this.getAlphaRamp(30,1);
+            % Second row is external mean current input
+            u{2,1} = @(t)1;
+        end
+        
+    end
+    
+    methods(Access=protected)
+        function dealWithFibreTypes(this, types)
+            % Opposite to the normal muscle model behaviour, here we have a
+            % built-in pool by the FirstOrderDynamics class. This only
+            % needs the fibre types.
+            this.FibreTypes = types;
+            
+            ftw = this.FibreTypeWeights;
             this.forces_scaling = 1./polyval(this.forces_scaling_poly,this.FibreTypes)';
             % Pre-scale the different weights so that the output of the
             % sarcomere models can directly be used and still alpha <= 1
             % comes out.
             this.FibreTypeWeights = bsxfun(@times,this.forces_scaling',ftw);
         end
-        
-%         function u = getInputs(~)
-%             % Returns the inputs `u(t)` of the model, if neumann boundary
-%             % conditions are used
-%             %
-%             % this.Model can be used to get access to the model this
-%             % configuration is applied to.
-%             %
-%             % Return values:
-%             % u: The cell array of input functions to use within this
-%             % model. @type cell @default {@(t)1}
-%             u = {@(t)1};
-%         end
-        
     end
     
     methods(Abstract, Access=protected)
-        ft = getFibreTypes(this);
         sp = getSpindlePos(this);
     end
     

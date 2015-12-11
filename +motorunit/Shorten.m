@@ -69,19 +69,6 @@ classdef Shorten < models.BaseFullModel
             this.DefaultInput = 1;
         end
         
-        function pm = plotMotoSacroLinkFactorCurve(this)
-            x = 0:.1:80;
-            pm = PlotManager;
-            pm.LeaveOpen = true;
-            h = pm.nextPlot('moto_sarco_link_factor','Factor for motoneuro to sarcomere link','Moto V_s','Factor');
-            f = this.System.f;
-            fx = f.MSLink_MaxFactor*ones(1,length(x));
-            dynfac = x < f.MSLink_MaxFactorSignal;
-            fx(dynfac) = f.getLinkFactor(x(dynfac));
-            plot(h,x,fx);
-            pm.done;
-        end
-        
         function plotOutputForceScaling(this, x)
             if nargin < 2
                 x = 0:.01:1;

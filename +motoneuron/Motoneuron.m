@@ -20,6 +20,7 @@ classdef Motoneuron < KerMorObject
     properties(SetAccess=private)
         Constants;
         Noise;
+        AP;
         FibreTypeNoiseFactors;
         JSparsityPattern;
         InitialValues;
@@ -91,6 +92,9 @@ classdef Motoneuron < KerMorObject
         end
         
         function J = Jdydt(this, y, ~, typeidx)
+            if nargin < 4
+                typeidx = 1;
+            end
             c = this.Constants(:,typeidx);
             J = sparse(6,6);
             J(1,1) = -(c(1) + c(5))/c(7);

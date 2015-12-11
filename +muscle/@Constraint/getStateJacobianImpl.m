@@ -12,7 +12,7 @@ function Jg = getStateJacobianImpl(this, uvwdof, t)
 
     N = geo.NumNodes;
     M = pgeo.NumNodes;
-    dofs_pos = 3*N;
+    fo = sys.NumFirstOrderDofs;
     dofsperelem_pos = geo.DofsPerElement;
     dofsperelem_press = pgeo.DofsPerElement;
     num_gausspoints = fe_pos.GaussPointsPerElem;
@@ -77,7 +77,7 @@ function Jg = getStateJacobianImpl(this, uvwdof, t)
             end
         end
     end
-    Jg = sparse(i,j,s,M,6*N+M);
+    Jg = sparse(i,j,s,M,6*N+M+fo);
     % Remove values at dirichlet nodes
     Jg(:,sys.idx_uv_bc_glob) = [];
 end

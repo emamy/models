@@ -214,20 +214,52 @@ classdef AMuscleConfig < fem.AFEMConfig
             this.PressureFEM = fem.HexahedronTrilinear(press_geo);
             %this.PressureFEM = fem.HexahedronSerendipity(press_geo.toCube20Node);
             %this.PressureFEM = fem.HexahedronTriquadratic(press_geo.toCube27Node);
+            
+            this.initFibreInfo;
         end
         
         function anull = seta0(~, anull)
             % do nothing!
         end
         
-        function ftw = getFibreTypeWeights(this)
-            % This is a lazy pre-implementation as fullmodels.muscle.Models
-            % always have fibre types and thus weights.
+        function [types, weights] = getFibreInfo(this)
+            % Override in subclasses to provide fibre information.
             %
-            % This method simply returns an all-zero weighting.
-            fe = this.FEM;
-            geo = fe.Geometry;
-            ftw = zeros(fe.GaussPointsPerElem,length(this.FibreTypes),geo.NumElements);
+            % Return values:
+            % types: The fibre types @rowvec<double>
+            % weights: The fibre type weighting at each gauss point and
+            % element. @type matrix<N_GAUSSPOINTS,N_TYPES,N_ELEMENTS>
+            types = [];
+            weights = [];
+        end
+        
+        function ftw = getZeroFTWeights(this, len)
+            ftw = zeros(this.FEM.GaussPointsPerElem,len,...
+                this.FEM.Geometry.NumElements);
+        end
+        
+        function dealWithFibreTypes(this, types)
+            % In the full muscle class we dont need a pool as it is
+            % integrated into the model, hence we need the possibility to
+            % override the behaviour.
+            p = models.motorunit.Pool;
+            p.FibreTypes = types;
+            this.Pool = p;
+        end
+    end
+    
+    methods(Access=private)
+        function initFibreInfo(this)
+            [types, weights] = this.getFibreInfo;
+            if ~isempty(types)
+                if size(weights,1) ~= this.FEM.GaussPointsPerElem ...
+                    || size(weights,2) ~= length(types) ...
+                    || size(weights,3) ~= this.FEM.Geometry.NumElements
+                    error('The sizes of fibre type weigths does not match!');
+                end
+                this.FibreTypeWeights = weights;
+                this.dealWithFibreTypes(types);
+            end
         end
     end
     

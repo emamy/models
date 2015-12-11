@@ -85,9 +85,9 @@ classdef Dynamics < dscomponents.ACompEvalCoreFun
         function configUpdated(this)
             sys = this.fsys;
             mc = sys.Model.Config;
-            if ~isempty(mc.Pool)
-                this.nfibres = size(mc.FibreTypeWeights,2);
-            end
+%             if ~isempty(mc.Pool)
+%                 this.nfibres = size(mc.FibreTypeWeights,2);
+%             end
             if ~isempty(mc)
                 this.xDim = sys.NumTotalDofs;
                 this.fDim = sys.NumDerivativeDofs;

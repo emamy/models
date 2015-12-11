@@ -65,7 +65,7 @@ classdef Dynamics < models.motorunit.MotorunitBaseDynamics
         end
         
         function prepareSimulation(this, mu)
-            prepareSimulation@dscomponents.ACoreFun(this, mu);
+            prepareSimulation@models.motorunit.MotorunitBaseDynamics(this, mu);
             this.hadpeak = false;
         end
         
@@ -143,7 +143,7 @@ classdef Dynamics < models.motorunit.MotorunitBaseDynamics
                 signal = 0;
             elseif this.LinkSarcoMoto
                 % "Link" at the only sarcomere
-                signal = this.getLinkFactor(y(2))*y(2)/sa.SarcoConst(1);
+                signal = this.mslinkfun(y(2))*y(2)/sa.SarcoConst(1);
             else
                 % Bypass of the motoneuron: external input for sarcomere
                 signal = this.extInput(t);
@@ -182,7 +182,7 @@ classdef Dynamics < models.motorunit.MotorunitBaseDynamics
             
             if this.LinkSarcoMoto
                 % link position is dm+1
-                J(s.MotoSarcoLinkIndex,2) = this.getLinkFactor(y(2))/sa.SarcoConst(1);
+                J(s.MotoSarcoLinkIndex,2) = this.mslinkfun(y(2))/sa.SarcoConst(1);
             end
         end
         

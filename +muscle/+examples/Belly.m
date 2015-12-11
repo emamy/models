@@ -8,21 +8,6 @@ classdef Belly < models.muscle.AMuscleConfig
         function this = Belly(varargin)
             this = this@models.muscle.AMuscleConfig(varargin{:});
             this.init;
-            
-            %% Muscle fibre weights
-            types = [0 .2 .4 .6 .8 1];
-            ftw = zeros(this.FEM.GaussPointsPerElem,length(types),this.FEM.Geometry.NumElements);
-            % Test: Use only slow-twitch muscles
-            ftw(:,1,:) = .4;
-            ftw(:,2,:) = .05;
-            ftw(:,3,:) = .05;
-            ftw(:,4,:) = .1;
-            ftw(:,5,:) = .2;
-            ftw(:,6,:) = .2;
-            this.FibreTypeWeights = ftw;
-            p = models.motorunit.Pool;
-            p.FibreTypes = types;
-            this.Pool = p;
         end
         
         function configureModel(this, m)
@@ -40,6 +25,19 @@ classdef Belly < models.muscle.AMuscleConfig
             np = 4;
             geo = fem.geometry.Belly(linspace(0,10,np+1),'Radius',1,'InnerRadius',.5,'Gamma',2);
             this.NumParts = np;
+        end
+        
+        function [types, ftw] = getFibreInfo(this)
+            %% Muscle fibre weights
+            types = [0 .2 .4 .6 .8 1];
+            ftw = this.getZeroFTWeights(length(types));
+            % Test: Use only slow-twitch muscles
+            ftw(:,1,:) = .4;
+            ftw(:,2,:) = .05;
+            ftw(:,3,:) = .05;
+            ftw(:,4,:) = .1;
+            ftw(:,5,:) = .2;
+            ftw(:,6,:) = .2;
         end
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)

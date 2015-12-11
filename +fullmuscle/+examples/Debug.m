@@ -49,29 +49,24 @@ classdef Debug < models.fullmuscle.AMuscleConfig
             geo = fem.geometry.RegularHex27Grid([0 1],[0 1],[0 1]);
         end
         
-        function ft = getFibreTypes(~)
+        function [ft, ftw] = getFibreInfo(this)
 %             ft = [0 .2 .4 .6 .8 1];
 %             ft = [0 .4 1];
             ft = 0;
+            ftw = this.getZeroFTWeights(length(ft));
+            % Test: Use only slow-twitch muscles
+            ftw(:,1,:) = .4;
+%             ftw(:,2,:) = .05;
+%             ftw(:,3,:) = .05;
+%             ftw(:,4,:) = .1;
+%             ftw(:,5,:) = .2;
+%             ftw(:,6,:) = .2;
         end
         
         function sp = getSpindlePos(~)
             % Spindle position: first row element, second row gauss point
             % within element
             sp = [1; 1];
-        end
-        
-        function ftw = getFibreTypeWeights(this)
-            % Get pre-initialized all zero weights
-            ftw = getFibreTypeWeights@models.fullmuscle.AMuscleConfig(this);
-
-            ftw(:,1,:) = 1;
-%             ftw(:,1,:) = .3;
-%             ftw(:,2,:) = .4;
-%             ftw(:,3,:) = .3;
-%                 ftw(:,4,:) = .1;
-%                 ftw(:,5,:) = .2;
-%                 ftw(:,6,:) = .2;
         end
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)

@@ -40,28 +40,23 @@ classdef CFibreDemo < models.fullmuscle.AMuscleConfig
     
     methods(Access=protected)
         
-        function ft = getFibreTypes(~) 
+        function [ft, ftw] = getFibreInfo(~) 
             ft = [0 .2 .4 .6 .8 1];
-        end
-        
-        function sp = getSpindlePos(~)
-            % No spindles (feedback) here
-            sp = [];
-        end
-        
-        function ftw = getFibreTypeWeights(this)
-            % Get pre-initialized all zero weights
-            ftw = getFibreTypeWeights@models.fullmuscle.AMuscleConfig(this);
-
+            ftw = this.getZeroFTWeights(length(ft));
             ls = LinearSplitOfOne('y',5,40);
             splitfun = ls.getAllFunctionsParsed;
             
-            fe = this.PosFE;
+            fe = this.FEM;
             geo = fe.Geometry;
             for k = 1:geo.NumElements
                 gp_ypos = geo.Nodes(2,geo.Elements(k,:)) * fe.Ngp(:,:,k);
                 ftw(:,:,k) = splitfun(gp_ypos)';
             end
+        end
+        
+        function sp = getSpindlePos(~)
+            % No spindles (feedback) here
+            sp = [];
         end
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)

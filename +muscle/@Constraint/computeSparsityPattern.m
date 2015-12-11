@@ -11,6 +11,7 @@ function SP = computeSparsityPattern(this)
     num_gausspoints = fe_pos.GaussPointsPerElem;
     dofsperelem_displ = geo.DofsPerElement;
     dofsperelem_press = pgeo.DofsPerElement;
+    fo = sys.NumFirstOrderDofs;
     
     % Compute indices vectors size for speed
     itotal = num_elements*num_gausspoints...
@@ -40,7 +41,7 @@ function SP = computeSparsityPattern(this)
     end
     % Create g constraint pattern
     M = pgeo.NumNodes;
-    SP = sparse(double(i),double(j),ones(size(i)),M,6*geo.NumNodes+M);
+    SP = sparse(double(i),double(j),ones(size(i)),M,6*geo.NumNodes+fo+M);
     % Reomve BC affected nodes
     SP(:,sys.idx_uv_bc_glob) = [];
     SP = logical(SP);

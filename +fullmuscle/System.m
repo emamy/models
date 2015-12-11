@@ -13,26 +13,7 @@ classdef System < models.muscle.System;
 % - \c Documentation http://www.agh.ians.uni-stuttgart.de/documentation/kermor/
 % - \c License @ref licensing
     
-    properties(SetAccess=private)
-        num_motoneuron_dof;
-        num_sarco_dof;
-        num_spindle_dof;
-        num_all_dof;
-        num_extra_dof;
-        off_moto;
-        off_sarco;
-        off_spindle;
-        
-        input_motoneuron_link_idx;
-        moto_input_noise_factors;
-        sarco_output_idx;
-        
-        % The offset for the sarcomere signals at t=0. Used to create
-        % alpha(X,0) = 0
-        %
-        % See also: assembleX0
-        sarco_mech_signal_offset
-        
+    properties(SetAccess=private) 
         Motoneuron;
         Spindle;
         Sarcomere;
@@ -44,46 +25,34 @@ classdef System < models.muscle.System;
     end
     
     methods
-        function this = System(model)
+        function this = System(model, mc)
             this = this@models.muscle.System(model);
+            % Here we have a force argument for muscle contraction!
+            %this.HasForceArgument = true;
+            
             this.f = models.fullmuscle.Dynamics(this);
             
-            mc = model.Config;
-            opts = mc.Options;
-            
-            % First row is neumann input
-            this.Inputs{1,1} = mc.getAlphaRamp(30,1);
-            % Second row is external mean current input
-%             this.Inputs{2,1} = @(t)1;
-            
-%             % Setup noise input
-%             ng = models.motoneuron.NoiseGenerator;
-%             ng.DisableNoise = ~options.Noise;
-%             this.noiseGen = ng;
-%             this.Inputs{1} = @ng.getInput;
-            
+            opts = mc.Options;            
             if opts.SarcoVersion == 1
                 this.Sarcomere = models.motorunit.SarcomereOriginal;
             else
                 this.Sarcomere = models.motorunit.SarcomereNeumann;
             end
-            this.num_sarco_dof = this.Sarcomere.Dims;
             
             this.Motoneuron = models.motoneuron.Motoneuron;
-            this.num_motoneuron_dof = this.Motoneuron.Dims;
             
-            % Compile information for plotting
-            this.Plotter = models.fullmuscle.MusclePlotter(this);
+            % Constraint nonlinearity - same as for normal muscle model
+            this.g = models.muscle.Constraint(this);
             
-            % Constraint nonlinearity
-            this.g = models.fullmuscle.ExtendedConstraint(this);
+            % Add the motorunits and spindle dynamics as standard first
+            % order dynamics
+            this.FO = models.fullmuscle.FirstOrderDynamics(this);
         end
         
         function configUpdated(this)
             mc = this.Model.Config;
             ft = mc.FibreTypes;
-            nf = length(ft);
-            this.nfibres = nf;
+            this.nfibres = length(ft);
             
             %% Configure motoneurons
             this.Motoneuron.setType(ft);
@@ -100,6 +69,11 @@ classdef System < models.muscle.System;
             end
             
             configUpdated@models.muscle.System(this);
+            
+            this.FO.configUpdated;
+            
+            % Compile information for plotting
+            this.Plotter = models.fullmuscle.MusclePlotter(this);
         end
         
         function setConfig(this, mu, inputidx)
@@ -110,17 +84,20 @@ classdef System < models.muscle.System;
                 % function and creates the effective noisy signal from it
                 maxcurrents = this.Motoneuron.getMaxMeanCurrents;
                 
-                % Get noise from motoneuron class
-                no = this.Motoneuron.TypeNoise;
-                bno = this.Motoneuron.BaseNoise;
+                % Get all type-dependent noises from motoneuron class
+                no = this.Motoneuron.Noise;%#ok
                 
                 % First row is neumann input
-                uneum = this.Inputs{1,inputidx};
+                uneum = this.Inputs{1,inputidx};%#ok
                 
                 % Second row is external mean current input
-                uext = this.Inputs{2,inputidx};
+                uext = this.Inputs{2,inputidx};%#ok
                 
-                ustr = '@(t)[mu(3)*uneum(t); bno(round(t)+1); ';
+                % Neumann input as first dimension
+                % Motoneuron base mean as second
+                % Motoneuron type-dep noises as third
+                ng = models.motoneuron.NoiseGenerator;
+                ustr = sprintf('@(t)[mu(3)*uneum(t); %g*ones(size(t)); ',ng.AP);
                 for k=1:this.nfibres
                     rowfun = sprintf('no(%d,round(t)+1)*min(%g,mu(4)*uext(t)); ', k, maxcurrents(k));
                     ustr = [ustr rowfun];%#ok
@@ -130,98 +107,30 @@ classdef System < models.muscle.System;
             end
         end
         
-        function uvwall = includeDirichletValues(this, t, uvw)
-            uvwall_mech = includeDirichletValues@models.muscle.System(...
-                this, t, uvw(1:this.off_moto,:));
-            uvwall = [uvwall_mech; uvw(this.off_moto+1:end,:)];
-        end
+%         function uvwall = includeDirichletValues(this, t, uvw)
+%             uvwall_mech = includeDirichletValues@models.muscle.System(...
+%                 this, t, uvw(1:this.EndSecondOrderDofs,:));
+%             uvwall = [uvwall_mech; uvw(this.off_moto+1:end,:)];
+%         end
         
     end
     
     methods(Access=protected)
         
         function updateDimensions(this, mc)
+            % Recompute the first order dimensions (number of fibre types
+            % could have changed)
+            fo = this.FO;
+            fo.updateDimensions(mc);
+            this.NumFirstOrderDofs = fo.fDim;
+            
             updateDimensions@models.muscle.System(this, mc);
-            
-            dm = this.Motoneuron.Dims;
-            dsa = this.Sarcomere.Dims;
-            
-            % Motoneurons are beginning after mechanics
-            this.off_moto = this.NumTotalDofs;
-            this.num_motoneuron_dof = dm*this.nfibres;
-
-            % Sarcomeres are beginning after motoneurons
-            this.off_sarco = this.off_moto + this.num_motoneuron_dof;
-            this.num_sarco_dof = dsa*this.nfibres;
-            
-            % Spindles are beginning after sarcomeres
-            this.off_spindle = this.off_sarco + this.num_sarco_dof;
-            this.num_spindle_dof = 0;
-            if this.HasSpindle
-                ds = this.Spindle.Dims;
-                this.num_spindle_dof = ds*this.nfibres;
-            end
-            this.num_all_dof = this.off_spindle + this.num_spindle_dof;
-            
-            % Get the positions where the input signal is mapped to the
-            % motoneurons
-            this.input_motoneuron_link_idx = this.off_moto + (2:dm:dm*this.nfibres);
-            
-            this.sarco_output_idx = this.off_sarco + (53:dsa:dsa*this.nfibres);
-            
-            % Set all those extra dofs as algebraic dofs
-            this.num_extra_dof = this.num_motoneuron_dof...
-                + this.num_sarco_dof ...
-                + this.num_spindle_dof;
-            this.NumAlgebraicDofs = this.NumAlgebraicDofs ...
-                + this.num_extra_dof;
-            % Re-compute the total dof number
-            this.NumTotalDofs = this.NumStateDofs ...
-                + this.NumDerivativeDofs + this.NumAlgebraicDofs;
         end
         
-        function ad_ic_as_x0 = getAlgebraicDofsInitialConditions(this)
-            ad_ic_as_x0 = getAlgebraicDofsInitialConditions@models.muscle.System(this);
-            
-            dm = this.Motoneuron.Dims;
-            dsa = this.Sarcomere.Dims;
-            mc = this.Model.Config;
-            opt = mc.Options;
-            
-            % Actual constraint dofs (=g operator from mechanics)
-            off = this.NumAlgebraicDofs - this.num_extra_dof;
-            
-            % Load dynamic/affine x0 coefficients for moto/sarco system
-            % from file
-            meta = metaclass(this);
-            s = load(fullfile(fileparts(which(meta.Name)),...
-                    sprintf('x0coeff%d.mat',opt.SarcoVersion)));
-            x0_motorunit = dscomponents.AffineInitialValue;
-            m = size(s.coeff,1);
-            for k=1:m
-                x0_motorunit.addMatrix(sprintf('polyval([%s],mu(1))',...
-                    sprintf('%.14g ',s.coeff(k,:))),full(sparse(k,1,1,m,1)));
-            end
-            % Evaluate the dynamic ICs for the selected fibre types and use
-            % them as x0
-            ft = mc.FibreTypes;
-            smoff = zeros(this.nfibres,1);
-            for k=1:this.nfibres
-                x0ms = x0_motorunit.evaluate(ft(k));
-                % add moto
-                ad_ic_as_x0(off + dm*(k-1) + (1:dm)) = x0ms(1:dm);
-                % add sarco
-                off = off + this.num_motoneuron_dof;
-                ad_ic_as_x0(off + dsa*(k-1) + (1:dsa)) = x0ms((dm+1):end);
-                smoff(k) = x0ms(dm+53);
-                if this.HasSpindle
-                    ds = this.Spindle.Dims;
-                    off = off + this.num_sarco_dof;
-                    % add spindle
-                    ad_ic_as_x0(off + ds*(k-1) + (1:ds)) = this.Spindle.y0;
-                end
-            end
-            this.sarco_mech_signal_offset = smoff;
+        function x0 = getFOx0(this, ~)
+            % We put the x0 assembly into the first order dynamics class as
+            % all the relevant quantities are stored there
+            x0 = this.FO.x0;
         end
         
 %         function x0 = assembleX0(this)

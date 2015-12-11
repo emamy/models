@@ -36,7 +36,7 @@ classdef Dynamics < models.motorunit.MotorunitBaseDynamics
             end
             this.fDim = sys.N*sys.dsa + sys.ds + sys.dm;
             this.xDim = this.fDim;
-            this.MSLink_MaxFactor = 0.25/sys.dx;
+            this.MSLink.MSLink_MaxFactor = 0.25/sys.dx;
             
             this.initJSparsityPattern;
         end
@@ -89,7 +89,7 @@ classdef Dynamics < models.motorunit.MotorunitBaseDynamics
             %% Link of motoneuron to sarcomer cell
             if ~sys.HadPeak
                 linkpos = sys.MotoSarcoLinkIndex;
-                dy(linkpos,:) = dy(linkpos,:) + this.getLinkFactor(y(2,:))...
+                dy(linkpos,:) = dy(linkpos,:) + this.mslinkfun(y(2,:))...
                     .*y(2,:)./sa.SarcoConst(1,:);
             end
         end
@@ -132,7 +132,7 @@ classdef Dynamics < models.motorunit.MotorunitBaseDynamics
                 Jsa{idx} = sparse(j,i,Jsaall(:,idx),dsa,dsa);
             end
             J = blkdiag(Jm,Jsp,Jsa{:});
-            J(s.MotoSarcoLinkIndex,2) = this.getLinkFactor(y(2,:))./sa.SarcoConst(1,:);
+            J(s.MotoSarcoLinkIndex,2) = this.mslinkfun(y(2,:))./sa.SarcoConst(1,:);
         end
         
         function copy = clone(this)

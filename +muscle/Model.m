@@ -35,7 +35,7 @@ classdef Model < models.BaseFullModel
             if nargin < 2
                 basedir = KerMor.App.DataDirectory;
                 if nargin < 1
-                    conf = Debug;
+                    conf = models.muscle.examples.Debug;
                 end
             end
             % Creates a new muscle model
@@ -46,6 +46,7 @@ classdef Model < models.BaseFullModel
             this.Data = data.ModelData(this,basedir);
             
             this.System = models.muscle.System(this);
+            
             % Sets DefaultMu
             this.initDefaultParameter;
             
@@ -73,6 +74,10 @@ classdef Model < models.BaseFullModel
             s.IncludeBSpan = true;
             s.Mode = 'abs';
             this.SpaceReducer = s;
+            
+            % Chance for subclasses (e.g. models.fullmuscle.Model) to add
+            % custom constructor code before the model is configured
+            this.subclassInit(conf);
             
             % Call the config-specific model configuration
             conf.configureModel(this);
@@ -415,6 +420,7 @@ classdef Model < models.BaseFullModel
             end
             this.Config = value;
             this.System.configUpdated;
+            this.System.updateSparsityPattern;
             this.Plotter = models.muscle.MusclePlotter(this.System);
         end
         
@@ -447,6 +453,12 @@ classdef Model < models.BaseFullModel
             value = this.Config.Geometry;
         end
         
+    end
+    
+    methods(Access=protected)
+        function subclassInit(this, config)
+            % do nothing by default
+        end
     end
     
     methods(Static)

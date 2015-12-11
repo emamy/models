@@ -333,7 +333,7 @@ classdef System < models.BaseSecondOrderSystem
                 
                 this.HasMotoPool = this.HasFibres && ~isempty(mc.Pool);
                 this.HasFibreTypes = this.HasFibres && ~isempty(mc.FibreTypeWeights);
-                this.HasForceArgument = this.HasFibreTypes && isa(this,'models.fullmuscle.System');
+                this.HasForceArgument = isa(this,'models.fullmuscle.System');
                 this.HasTendons = ~isempty(mc.getTendonMuscleRatio(zeros(3,1)));
 
                 % Construct global indices in uw from element nodes. Each dof in
@@ -372,8 +372,6 @@ classdef System < models.BaseSecondOrderSystem
                 
                 %% Algebraic constraints function
                 this.g.configUpdated;
-                
-                this.updateSparsityPattern;
             end
         end
         
@@ -488,7 +486,7 @@ classdef System < models.BaseSecondOrderSystem
             geo_uv = tq.Geometry;
             this.NumStateDofs = geo_uv.NumNodes * 3 - length(this.idx_u_bc_glob);
             
-            this.num_uvp_glob = geo_uv.NumNodes * 6 + this.NumAlgebraicDofs;
+            this.num_uvp_glob = geo_uv.NumNodes * 6 + this.NumFirstOrderDofs + this.NumAlgebraicDofs;
             % Compile the inverse addressing for inserting dofs into the
             % full vector
             idx = int32(1:this.num_uvp_glob);

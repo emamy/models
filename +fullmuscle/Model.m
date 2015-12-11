@@ -35,12 +35,21 @@ classdef Model < models.muscle.Model
             if nargin < 1
                 conf = models.fullmuscle.examples.Debug;
             end
-            
             this = this@models.muscle.Model(conf);
+        end
+        
+        function varargout = plotGeometrySetup(this, varargin)
+            varargin = [varargin {'GeoOnly',true}];
+            [varargout{1:nargout}] = plotGeometrySetup@models.muscle.Model(this,varargin{:});
+        end
+        
+    end
+    
+    methods(Access=protected)
+        function subclassInit(this, config)
             
-            this.System = models.fullmuscle.System(this);
+            this.System = models.fullmuscle.System(this, config);
             
-            this.DefaultMu = [1 0 0 3]';
             this.DefaultInput = 1;
             
             % Der tut auch wunderbar :-)
@@ -51,37 +60,6 @@ classdef Model < models.muscle.Model
 %             slv.RelTol = .001;
 %             slv.AbsTol = .01;
             this.ODESolver = slv;
-            
-            % Call the config-specific model configuration
-            conf.configureModel(this);
-        
-            % Set the config to the model, triggering geometry related
-            % pre-computations
-            this.setConfig(conf);
-            
-            % Call the config-specific model configuration
-            conf.configureModelFinal(this);
-            
-            this.System.prepareSimulation(this.DefaultMu, this.DefaultInput);
-        end
-        
-        function varargout = plotGeometrySetup(this, varargin)
-            varargin = [varargin {'GeoOnly',true}];
-            [varargout{1:nargout}] = plotGeometrySetup@models.muscle.Model(this,varargin{:});
-        end
-        
-        function pm = plotMotoSacroLinkFactorCurve(this)
-            x = 0:.1:80;
-            pm = PlotManager;
-            pm.LeaveOpen = true;
-            h = pm.nextPlot('moto_sarco_link_factor',...
-                'Factor \gamma(q) for motoneuron to sarcomere link','q','\gamma(q)');
-            f = this.System.f;
-            fx = f.MSLink_MaxFactor*ones(1,length(x));
-            dynfac = x < f.MSLink_MaxFactorSignal;
-            fx(dynfac) = f.MSLinkFun(x(dynfac));
-            plot(h,x,fx,'r','LineWidth',2);
-            pm.done;
         end
     end
     

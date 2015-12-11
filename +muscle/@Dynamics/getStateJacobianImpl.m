@@ -1,4 +1,4 @@
-function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t)
+function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t, fibreforces)
     
 %     JK = this.getStateJacobianFD(uvwdof,t);
 %     return;
@@ -47,6 +47,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t)
     relidx_pos = 1:numXYZDofs_pos;
     % 3x for grad_u K(u,v,w), 1x for Grad_w K(u,v,w)
     numparts = (3+1)*numXYZDofs_pos;
+    nfo = sys.NumFirstOrderDofs;
 %     if visc > 0
 %         numparts = numparts+3*numXYZDofs_pos;
 %     end
@@ -77,7 +78,8 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t)
                 % different ftw's at each gauss point
                 [~, FibreForces] = mc.Pool.getActivation(t);
             elseif hasforceargument
-                FibreForces = uvwdof(sys.NumTotalDofs+1:end) * min(1,t);
+                FibreForces = fibreforces;
+                %FibreForces = uvwdof(sys.NumTotalDofs+1:end) * min(1,t);
                 totalsizeS = num_elements*num_gausspoints*this.nfibres;
                 iS = zeros(totalsizeS,1);
                 jS = zeros(totalsizeS,1);
@@ -96,7 +98,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t)
     cur_off = 0;
     
     globidx_pos = sys.idx_u_elems_local;
-    idx_p_elems_global = sys.idx_p_elems_local + 2*size_pos_vec;
+    idx_p_elems_global = sys.idx_p_elems_local + 2*size_pos_vec + nfo;
 
     % Include dirichlet values to state vector
     uvwcomplete = sys.includeDirichletValues(t, uvwdof);
@@ -386,7 +388,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t)
         end
     end
     % Assemble jacobian matrix
-    JK = sparse(i,j,s,3*N,6*N+pgeo.NumNodes);
+    JK = sparse(i,j,s,3*N,6*N+pgeo.NumNodes+nfo);
     % Remove values at dirichlet nodes
     JK(:,sys.idx_uv_bc_glob) = [];
     JK(sys.idx_v_bc_local,:) = [];
@@ -405,7 +407,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t)
     
     JLamDot = [];
     if haveldotpos
-        JLamDot = sparse(ildot,double(jldot),sldot,this.this.nfibres,6*N);
+        JLamDot = sparse(ildot,double(jldot),sldot,this.nfibres,6*N);
         JLamDot(:,sys.idx_uv_bc_glob) = [];
     end
 end

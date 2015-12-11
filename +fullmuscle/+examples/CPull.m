@@ -78,14 +78,28 @@ classdef CPull < models.fullmuscle.AMuscleConfig
     
     methods(Access=protected)
         
-        function ft = getFibreTypes(this)
+        function [ft, ftw] = getFibreInfo(this)
             switch this.Version
                 case 1
                    ft = 0;
+                   ftw = this.getZeroFTWeights(1);
+                   ftw(:,1,:) = 1;
                 case 2
                    ft = [0 1];
+                   ftw = this.getZeroFTWeights(2);
+                   ftw(:,1,:) = .5;
+                   ftw(:,2,:) = .5;
                 case 3
                    ft = [0 .2 .4 .6 .8 1];
+                   ftw = this.getZeroFTWeights(length(ft));
+                   fac = exp((1:6)/2);
+                   fac = fac / sum(fac);
+                   ftw(:,1,:) = fac(1);
+                   ftw(:,2,:) = fac(2);
+                   ftw(:,3,:) = fac(3);
+                   ftw(:,4,:) = fac(4);
+                   ftw(:,5,:) = fac(5);
+                   ftw(:,6,:) = fac(6);
             end
         end
         
@@ -99,28 +113,6 @@ classdef CPull < models.fullmuscle.AMuscleConfig
                    sp = [1 1; 1 2];
                 case 3
                    sp = [1 1 1 2 2 2; 1 10 20 4 10 25]; 
-            end
-        end
-        
-        function ftw = getFibreTypeWeights(this)
-            % Get pre-initialized all zero weights
-            ftw = getFibreTypeWeights@models.fullmuscle.AMuscleConfig(this);
-
-            switch this.Version
-                case 1
-                   ftw(:,1,:) = 1;
-                case 2
-                   ftw(:,1,:) = .5;
-                   ftw(:,2,:) = .5;
-                case 3
-                   fac = exp((1:6)/2);
-                   fac = fac / sum(fac);
-                   ftw(:,1,:) = fac(1);
-                   ftw(:,2,:) = fac(2);
-                   ftw(:,3,:) = fac(3);
-                   ftw(:,4,:) = fac(4);
-                   ftw(:,5,:) = fac(5);
-                   ftw(:,6,:) = fac(6);
             end
         end
         

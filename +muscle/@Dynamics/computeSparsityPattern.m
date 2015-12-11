@@ -25,6 +25,7 @@ function [SPK, SPalpha, SPLamDot] = computeSparsityPattern(this)
     num_elements = geo.NumElements;
     num_gausspoints = fe_pos.GaussPointsPerElem;
     dofs_pos = N*3;
+    fo = sys.NumFirstOrderDofs;
     dofsperelem_displ = geo.DofsPerElement;
     dofsperelem_press = pgeo.DofsPerElement;
     
@@ -39,7 +40,7 @@ function [SPK, SPalpha, SPLamDot] = computeSparsityPattern(this)
     for m = 1:num_elements
         elemidx_u = sys.idx_u_elems_local(:,:,m);
         elemidx_v = elemidx_u + dofs_pos;
-        elemidx_p_glob = sys.idx_p_elems_local(:,m)+2*dofs_pos;
+        elemidx_p_glob = sys.idx_p_elems_local(:,m)+2*dofs_pos+fo;
         inew = elemidx_u(:);
         one = ones(size(inew),'int32');
         for gp = 1:num_gausspoints
@@ -92,7 +93,7 @@ function [SPK, SPalpha, SPLamDot] = computeSparsityPattern(this)
             end
         end
     end
-    SPK = sparse(double(i),double(j),ones(size(i)),3*N,6*N+pgeo.NumNodes);
+    SPK = sparse(double(i),double(j),ones(size(i)),3*N,6*N+fo+pgeo.NumNodes);
     
     % Remove values at dirichlet nodes
     SPK = SPK(1:3*N,:);
