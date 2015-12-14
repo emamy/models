@@ -378,7 +378,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t, fibreforc
             if hasforceargument
                 for k = 1:this.nfibres
                     dPsk = alpha_prefactor * fibretypeweights(gp,k,m) * F * a0;
-                    iS(cur_offS + relidx_pos) = elemidx_v_out_linear-size_pos_vec;
+                    iS(cur_offS + relidx_pos) = elemidx_v_out_linear;
                     jS(cur_offS + relidx_pos) = columns_sarco_link(k);
                     snew = -weight * dPsk * dtn';
                     sS(cur_offS + relidx_pos) = snew(:);
@@ -402,7 +402,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t, fibreforc
     if hasforceargument
         Jalpha = sparse(iS,jS,sS,3*N,this.nfibres*56);
         % Remove those that are connected to dirichlet values
-        Jalpha([sys.idx_u_bc_glob; sys.idx_v_bc_glob],:) = [];
+        Jalpha([sys.idx_v_bc_local],:) = [];
     end
     
     JLamDot = [];

@@ -259,57 +259,61 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
 %             J = this.getStateJacobianFD(y,t);
 %             return;
             sys = this.System;
-            
-            % Get original constraint jacobian
-            J = getStateJacobian@models.muscle.Constraint(this, y(1:sys.off_moto), t);
-            mech_pressure_off = size(J,1);
-            % append zeros behind for extra dofs
-            J = [J sparse(mech_pressure_off,sys.num_extra_dof)];
-            
+            off_mech = sys.EndSecondOrderDofs;
             nf = sys.nfibres;
             
             %% Motoneuron
             mo = sys.Motoneuron;
+            ymoto = y(off_mech + (1:this.num_motoneuron_dof));
             dm = mo.Dims;
-            local_off_sarco = mech_pressure_off + nf*dm;
+            Jdm = cell(1,nf);
             for k=1:nf
                 pos = dm*(k-1)+1:dm;
-                J(mech_pressure_off+pos,sys.off_moto + pos) = ...
-                    mo.Jdydt(y(moto_pos),t,k);
+                Jdm{k} = mo.Jdydt(ymoto(pos),t,k);
             end
             
             %% Sarcomeres
             sa = sys.Sarcomere;
-            for k=1:nf
-                sarco_pos = sys.off_sarco + 56*(k-1) + (1:56);
-                J = blkdiag(J,sa.Jdydt(y(sarco_pos),t,k));
+            dsa = sa.Dims;
+            sarco_pos = this.num_motoneuron_dof + (1:this.num_sarco_dof);
+            ys = reshape(y(off_mech + sarco_pos),sa.Dims,[]);
+            if nf == 1
+                Jsa{1} = sa.Jdydt(ys, t);
+            else
+                Jsa = cell(1,nf);
+                [i,j] = find(sa.JSparsityPattern');
+                % New, faster evaluation! Stick all into the Jdydt function
+                % and create N sparse matrices from that!
+                % Tricky pattern transpose and swap of i,j though
+                Jsaall = sa.Jdydt(ys, t);
+                for idx = 1:nf
+                    Jsa{idx} = sparse(j,i,Jsaall(:,idx),dsa,dsa);
+                end
             end
             
+            %% Initialize Jacobian
+            J = sparse(this.fDim,this.xDim);
+            pos = 1:(dm+dsa)*nf;
+            J(pos,off_mech+pos) = blkdiag(Jdm{:},Jsa{:});
+            
             %% Motoneuron to Sarcomere coupling
-            moto_out = y(this.moto_sarco_link_moto_out);
-            fac = min(this.MSLink_MaxFactor,this.MSLinkFun(moto_out));
-            dfac = this.MSLinkFunDeriv(moto_out);
-            dsignal_dmotoout = (dfac .* moto_out + fac)./this.sarcoconst1';
+            moto_out = y(off_mech + this.moto_sarco_link_moto_out);
+            dsignal_dmotoout = (this.mslinkfunderiv(moto_out).*moto_out + this.mslinkfun(moto_out))./sa.SarcoConst(1,:)';
             for k=1:nf
                 J(this.moto_sarco_link_sarco_in(k),this.moto_sarco_link_moto_out(k)) = dsignal_dmotoout(k);
             end
             
-            %% Sarcomere to mechanics coupling
-            % The JS matrix is generated during the computation of the
-            % mechanics jacobian, as the element/gauss loop is computed
-            % there anyways. its not 100% clean OOP, but works for now.
-            J(sys.NumStateDofs + (1:sys.NumDerivativeDofs), sys.off_sarco+(1:sys.num_sarco_dof)) = Jalpha;
-            
             %% Spindle stuff
             if sys.HasSpindle
                 sp = sys.Spindle;
+                ds = sp.Dims;
+                off_spindle = nf*(dm+dsa);
+                spindle_pos = off_mech + off_spindle + (1:this.num_spindle_dof);
+                yspindle = reshape(y(spindle_pos),ds,[]);
+                Jsp = cell(1,nf);
                 if this.fUseFD
                     freq = this.FrequencyDetector.Frequency;
-                else
-                    % For no detection, the current spindle signal is
-                    % required
-                    spindle_pos = sys.off_spindle + (1:sys.num_spindle_dof);
-                    yspindle = reshape(y(spindle_pos),9,[]);
+                else   
                     % Get single spindle signals
                     spindle_sig = this.SpindleAffarentWeights*sp.getAfferents(yspindle);
                     % Compute the mean value over all signals
@@ -319,22 +323,22 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     freq_kexp_arg = [sys.Model.Config.FibreTypes; eff_spindle_sig];
                     freq = this.freq_kexp.evaluate(freq_kexp_arg);
                 end
-                
+                K = this.System.f;
                 i = []; j = []; s = [];
                 moto_pos = 2:6:6*nf;
                 for k=1:nf
-                    spindle_pos = sys.off_spindle + 9*(k-1) + (1:9);
+                    spindle_pos = off_spindle + ds*(k-1) + (1:ds);
                     
                     %% Spindles by themselves
-                    [Jspin, Jspin_dLdot, Jspin_dmoto] = sp.Jdydt(y(spindle_pos), t, freq(k), this.lambda_dot(k), 0);
-                    J = blkdiag(J,Jspin);
+                    [Jsp{k}, Jspin_dLdot, Jspin_dmoto] = ...
+                        sp.Jdydt(yspindle(:,k), t, freq(k), K.lambda_dot(k), 0);
                     
                     %% Mechanics to spindle coupling
-                    J(spindle_pos,1:sys.NumStateDofs+sys.NumDerivativeDofs) = Jspin_dLdot'*JLamDot(k,:);
+                    J(spindle_pos,1:sys.NumStateDofs+sys.NumDerivativeDofs) = Jspin_dLdot'*K.JLamDot(k,:);
                     
                     %% Spindle to Motoneuron coupling
-                    daffk_dy = this.SpindleAffarentWeights*sp.getAfferentsJacobian(y(spindle_pos));
-                    dnoise_daff = mo.TypeNoise(:,round(t)+1).*mo.FibreTypeNoiseFactors(:);
+                    daffk_dy = this.SpindleAffarentWeights*sp.getAfferentsJacobian(yspindle(:,k));
+                    dnoise_daff = mo.Noise(:,round(t)+1).*mo.FibreTypeNoiseFactors(:);
                     i = [i repmat(moto_pos',1,9)];%#ok
                     j = [j repmat(9*(k-1) + (1:9),nf,1)];%#ok
                     s = [s dnoise_daff*daffk_dy/nf];%#ok
@@ -347,9 +351,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                             + Jspin_dmoto'*kexp_Jac(2)*daffk_dy;
                     end
                 end
-                J(sys.off_moto + (1:sys.num_motoneuron_dof),...
-                  sys.off_spindle + (1:sys.num_spindle_dof))...
-                    = sparse(i(:),j(:),s(:),sys.num_motoneuron_dof,sys.num_spindle_dof);
+                J(1:this.num_motoneuron_dof,...
+                  off_mech + off_spindle + (1:this.num_spindle_dof))...
+                    = sparse(i(:),j(:),s(:),this.num_motoneuron_dof,this.num_spindle_dof);
             end
         end
         

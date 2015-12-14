@@ -21,6 +21,10 @@ classdef Dynamics < models.muscle.Dynamics;
     properties(Dependent)
         UseFrequencyDetector;
     end
+    
+    properties(SetAccess=private)
+        JLamDot;
+    end
 
     properties(Access=private)
        sarco_force_pos;
@@ -46,13 +50,6 @@ classdef Dynamics < models.muscle.Dynamics;
             
             configUpdated@models.muscle.Dynamics(this);
             
-            % fDim and xDim are from models.muscle.Dynamics, so add moto+sarco
-            this.fDim = this.fDim + (6+56)*this.nfibres;
-            this.xDim = this.xDim + (6+56)*this.nfibres;
-            if sys.HasSpindle
-                this.fDim = this.fDim + 9*this.nfibres;
-                this.xDim = this.xDim + 9*this.nfibres;
-            end
             % The forces of the sarcomere in the global vector are in the
             % FirstOrderDofs segment at the positions given by FO
             %
@@ -81,7 +78,7 @@ classdef Dynamics < models.muscle.Dynamics;
             SP(1:sys.NumDerivativeDofs, off_sarco+(1:fo.num_sarco_dof)) = SPalpha;
         end
         
-        function [J, JLamDot] = getStateJacobianImpl(this, y, t)
+        function J = getStateJacobianImpl(this, y, t)
 %             J = this.getStateJacobianFD(y,t);
 %             return;
             sys = this.System;
@@ -89,7 +86,7 @@ classdef Dynamics < models.muscle.Dynamics;
             %% Mechanics
             % Use uvp as argument and also pass in s (=sarco forces)
             force = max(0,y(this.sarco_force_pos)-sys.FO.sarco_mech_signal_offset);
-            [J, Jalpha, JLamDot] = getStateJacobianImpl@models.muscle.Dynamics(this, y, t, force);
+            [J, Jalpha, this.JLamDot] = getStateJacobianImpl@models.muscle.Dynamics(this, y, t, force);
             
             %% Sarcomere -> Mechanics coupling
             % The JS matrix is generated during the computation of the
@@ -97,7 +94,7 @@ classdef Dynamics < models.muscle.Dynamics;
             % there anyways. its not 100% clean OOP, but is faster.
             fo = sys.FO;
             off_sarco = sys.EndSecondOrderDofs + fo.num_motoneuron_dof;
-            J(sys.NumStateDofs + (1:sys.NumDerivativeDofs), off_sarco+(1:fo.num_sarco_dof)) = Jalpha;
+            J(1:sys.NumDerivativeDofs, off_sarco+(1:fo.num_sarco_dof)) = Jalpha;
         end
         
         function res = test_Jacobian(this, y, t, mu)
@@ -113,7 +110,7 @@ classdef Dynamics < models.muscle.Dynamics;
                 if nargin < 3
                     t = 1000;
                     if nargin < 2
-                        y = this.System.x0.evaluate(mu);
+                        y = this.System.getX0(mu);
                     end
                 end
             end
@@ -134,21 +131,25 @@ classdef Dynamics < models.muscle.Dynamics;
                 dlam(:,k) = this.lambda_dot;
             end
             JLamFD = (dlam - LAM)./dx(1:uv)';
-            [~, JLamDot] = this.getStateJacobian(y,t);
-            difn = norm(JLamFD-JLamDot);
+            % Sets the this.JLamDot quantity
+            this.getStateJacobian(y,t);
+            difn = norm(JLamFD-this.JLamDot);
             res = difn < 1e-13;
             
             freq = ones(1,this.nfibres)*30;
             dx = ones(this.nfibres,1)*sqrt(eps(class(ldotbase))).*max(abs(ldotbase),1);
             sp = sys.Spindle;
+            ds = sp.Dims;
+            fo = sys.FO;
+            off_spindle = sys.EndSecondOrderDofs + fo.num_motoneuron_dof + fo.num_sarco_dof;
+            yspindle = reshape(y(off_spindle + (1:fo.num_spindle_dof)), ds,[]);
             for k = 1:this.nfibres
-                spindle_pos = sys.off_spindle + 9*(k-1) + (1:9);
-                fx = sp.dydt(y(spindle_pos),t,freq(k),ldotbase(k),0);
-                fxh_dldot = sp.dydt(y(spindle_pos),t,freq(k),ldotbase(k)+dx(k),0);
-                fxh_dmoto = sp.dydt(y(spindle_pos),t,freq(k)+dx(k),ldotbase(k),0);
+                fx = sp.dydt(yspindle(:,k),t,freq(k),ldotbase(k),0);
+                fxh_dldot = sp.dydt(yspindle(:,k),t,freq(k),ldotbase(k)+dx(k),0);
+                fxh_dmoto = sp.dydt(yspindle(:,k),t,freq(k)+dx(k),ldotbase(k),0);
                 Jspin_Ldot_FD = (fxh_dldot-fx) / dx(k);
                 Jspin_moto_FD = (fxh_dmoto-fx) / dx(k);
-                [~, Jspin_dLdot, Jspin_dmoto] = sp.Jdydt(y(spindle_pos), t, freq(k), ldotbase(k), 0);
+                [~, Jspin_dLdot, Jspin_dmoto] = sp.Jdydt(yspindle(:,k), t, freq(k), ldotbase(k), 0);
                 difn = norm(Jspin_Ldot_FD - Jspin_dLdot');
                 res = res && difn < 1e-7;
                 difn = norm(Jspin_moto_FD - Jspin_dmoto');

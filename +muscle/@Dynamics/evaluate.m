@@ -82,7 +82,8 @@ function Kuvw = evaluate(this, uvwdof, t, fibreforces)
     
     idx_u_elems_local = sys.idx_u_elems_local;
     % Transfer to global position within complete uvw vector
-    idx_p_elems_global = sys.idx_p_elems_local+2*num_u_glob;
+    nfo = sys.NumFirstOrderDofs;
+    idx_p_elems_global = sys.idx_p_elems_local+2*num_u_glob+nfo;
     for m = 1:num_elements
         % 1:num_u_glob is all u
         elemidx_u = idx_u_elems_local(:,:,m); 
