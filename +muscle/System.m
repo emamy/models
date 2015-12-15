@@ -192,7 +192,7 @@ classdef System < models.BaseSecondOrderSystem
             
             % For some variants, we have the mean input current for the
             % motoneuron pool (generating activation)
-            this.addParam('mean input current',0);
+            this.addParam('mean cortex signal',0);
             
             % anisotropic passive stiffness for muscle material
             % markert law b1

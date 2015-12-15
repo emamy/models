@@ -422,8 +422,8 @@ classdef Model < models.BaseFullModel
             this.System.configUpdated;
             this.System.updateSparsityPattern;
             this.Plotter = models.muscle.MusclePlotter(this.System);
-        end
-        
+        end        
+                
         function setGaussIntegrationRule(this, value)
             % Sets the gauss integration rule for the model.
             % 
