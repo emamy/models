@@ -63,12 +63,12 @@ classdef System < models.BaseFirstOrderSystem
             B = dscomponents.AffLinInputConv;
             
             % Mean input mapping - scales with µ_2 as mean current factor
-            B.addMatrix('(mu(2,:))./(pi*(exp(log(100)*mu(1,:))*3.55e-05 + 77.5e-4).^2)',...
-                sparse(2,1,1,6,2));
+            c8s = this.f.moto.getC8String('mu(1,:)');
+            B.addMatrix(['(mu(2,:))./' c8s],sparse(2,1,1,6,2));
             % Noise input mapping - scales with fractional root of µ_2 
             % over [0,9] as factor
             % See models.motoneuron.experiments.NoiseScaling!
-            B.addMatrix('(9*((mu(2,:)/9).^1.24635))./(pi*(exp(log(100)*mu(1,:))*3.55e-05 + 77.5e-4).^2)',...
+            B.addMatrix(['(9*((mu(2,:)/9).^1.24635))./' c8s],...
                 sparse(2,2,1,6,2));
             this.B = B;
             

@@ -19,9 +19,7 @@ classdef Motoneuron < KerMorObject
     
     properties(SetAccess=private)
         Constants;
-        Noise;
         AP;
-        FibreTypeNoiseFactors;
         JSparsityPattern;
         InitialValues;
         
@@ -155,23 +153,6 @@ classdef Motoneuron < KerMorObject
             c(10,:) = -10*s;     % para.Vk
             c(11,:) = 0*s;     % para.Vl
             this.Constants = c;
-            
-            %% Assemble noise signal for each fibre
-            % thus far only used in models.fullmuscle!!
-            ng = models.motoneuron.NoiseGenerator;
-            ng.setFibreType(fibretypes(1));
-            thenoise = zeros(this.nt,length(ng.totalNoise));
-            thenoise(1,:) = ng.totalNoise;
-            for k=2:this.nt
-                ng.setFibreType(fibretypes(k));
-                thenoise(k,:) = ng.totalNoise;
-            end
-            this.Noise = thenoise;
-            
-            % The noise signal added to the soma is multiplied with a
-            % fibretype-dependent factor.
-            % These factors are made accessible where needed
-            this.FibreTypeNoiseFactors = 1./(pi*this.coolExp(77.5e-4, 0.0113, fibretypes).^2);
         end
         
         function copy = clone(this)
@@ -180,6 +161,17 @@ classdef Motoneuron < KerMorObject
             copy.Noise = this.Noise;
             copy.FibreTypeNoiseFactors = this.FibreTypeNoiseFactors;
             copy.nt = this.nt;
+        end
+        
+        function c8s = getC8String(~, mu_arg_string)
+            % Gets the string representation of the constant 8 values
+            c8s = ['(pi*(exp(log(100)*(' mu_arg_string '))*3.55e-05 + 0.00775).^2)'];
+        end
+        
+        function c8 = getC8Value(this, mu)
+            % Computes the c8 constant for a given mu
+%             c8 = pi*(exp(log(100)*mu)*3.55e-05 + 0.00775).^2;
+            c8 = pi*(this.coolExp(0.00775,0.0113,mu)).^2;
         end
         
         function value = getMaxMeanCurrents(this, ft)
