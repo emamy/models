@@ -1,5 +1,5 @@
 classdef Spindle < KerMorObject
-% Spindle: 
+% Spindle dynamics.
 %
 % @docupdate
 %

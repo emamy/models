@@ -1,5 +1,5 @@
 classdef FrequencyDetector < KerMorObject
-    % FrequencyDetector:
+    % FrequencyDetector
     % 
     % The old/original version was made by @ts
     %

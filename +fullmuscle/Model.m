@@ -1,5 +1,6 @@
 classdef Model < models.muscle.Model
-% Model: 
+% Adds a complete motorunit pool and fibre embeddings to the
+% models.muscle.Model for monolithic simulations
 %
 % Features:
 % - regionen mit summe der gewichtungen kleiner 1 ist region mit fett?!

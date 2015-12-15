@@ -1,5 +1,5 @@
 classdef MusclePlotter < models.muscle.MusclePlotter
-% MusclePlotter: 
+% Extends the models.muscle.MusclePlotter functionality
 %
 % @docupdate
 %
