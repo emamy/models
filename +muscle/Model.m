@@ -47,9 +47,6 @@ classdef Model < models.BaseFullModel
             
             this.System = models.muscle.System(this);
             
-            % Sets DefaultMu
-            this.initDefaultParameter;
-            
             this.TrainingParams = [1 2];
             
             this.T = 10; % [ms]
@@ -78,6 +75,9 @@ classdef Model < models.BaseFullModel
             % Chance for subclasses (e.g. models.fullmuscle.Model) to add
             % custom constructor code before the model is configured
             this.subclassInit(conf);
+            
+            % Sets DefaultMu
+            this.initDefaultParameter;
             
             % Call the config-specific model configuration
             conf.configureModel(this);

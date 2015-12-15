@@ -16,7 +16,7 @@ classdef Debug < models.fullmuscle.AMuscleConfig
             configureModel@models.fullmuscle.AMuscleConfig(this, m);
             m.ODESolver = solvers.MLode15i;
             switch this.Options.Version
-            case 1
+            case {1,2}
                 m.T = 100;
                 m.dt = .1;
                 
@@ -50,23 +50,43 @@ classdef Debug < models.fullmuscle.AMuscleConfig
         end
         
         function [ft, ftw] = getFibreInfo(this)
-%             ft = [0 .2 .4 .6 .8 1];
-%             ft = [0 .4 1];
-            ft = 0;
-            ftw = this.getZeroFTWeights(length(ft));
-            % Test: Use only slow-twitch muscles
-            ftw(:,1,:) = .4;
-%             ftw(:,2,:) = .05;
-%             ftw(:,3,:) = .05;
-%             ftw(:,4,:) = .1;
-%             ftw(:,5,:) = .2;
-%             ftw(:,6,:) = .2;
+            switch this.Options.Version
+                case 1
+                    ft = 0;
+                    ftw = this.getZeroFTWeights(length(ft));
+                    % Test: Use only slow-twitch muscles
+                    ftw(:,1,:) = .4;
+                case 2
+                    ft = [0 .4 1];
+                    ftw = this.getZeroFTWeights(length(ft));
+                    ftw(:,1,:) = .4;
+                    ftw(:,2,:) = .2;
+                    ftw(:,3,:) = .4;
+                case 3
+                    ft = [0 .2 .4 .6 .8 1];
+                    ftw = this.getZeroFTWeights(length(ft));
+                    ftw(:,1,:) = .4;
+                    ftw(:,2,:) = .05;
+                    ftw(:,3,:) = .05;
+                    ftw(:,4,:) = .1;
+                    ftw(:,5,:) = .2;
+                    ftw(:,6,:) = .2;
+            end
         end
         
-        function sp = getSpindlePos(~)
+        function sp = getSpindlePos(this)
             % Spindle position: first row element, second row gauss point
             % within element
-            sp = [1; 1];
+            switch this.Options.Version
+                case 1
+                    sp = [1; 1];
+                case 2
+                    sp = [1 1 1
+                          1 10 20];
+                case 3
+                    sp = [ones(1,6)
+                          1 6 10 14 20 26];
+            end
         end
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)
@@ -97,7 +117,7 @@ classdef Debug < models.fullmuscle.AMuscleConfig
         
         function anull = seta0(this, anull)
             switch this.Options.Version
-            case {1}
+            case {1,2,3}
                 anull(1,:,:) = 1;
 %             case {4,7}
 %                 % No fibres

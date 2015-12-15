@@ -27,8 +27,10 @@ classdef System < models.muscle.System;
     methods
         function this = System(model, mc)
             this = this@models.muscle.System(model);
-            % Here we have a force argument for muscle contraction!
-            %this.HasForceArgument = true;
+            
+            % Set the default param 4 to 3 (some activation)
+            this.Params(4).Default = 3;
+            this.HasForceArgument = true;
             
             this.f = models.fullmuscle.Dynamics(this);
             

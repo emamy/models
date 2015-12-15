@@ -44,6 +44,9 @@ classdef Model < models.muscle.Model
                 error('Config must be a models.fullmuscle.AMuscleConfig instance');
             end
             setConfig@models.muscle.Model(this, value);
+            if ~isempty(value.FibreTypes) && ~this.System.HasFibres
+               error('Invalid configuration: Have FibreTypes set but no fibre direction information. Please properly implement the "seta0" method of your MuscleConfig'); 
+            end
             this.Plotter = models.fullmuscle.MusclePlotter(this.System);
         end
         

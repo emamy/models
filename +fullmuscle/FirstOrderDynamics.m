@@ -220,7 +220,7 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             indep_sig = moto_signal * this.IndepNoise_AP;
             fibre_dep_sig = 9*((moto_signal/9).^1.24635) .* this.Noise(:,round(t)+1)';
             dy(this.moto_signal_input_pos) = dy(this.moto_signal_input_pos) ...
-                + (indep_sig + fibre_dep_sig).*this.SomaInputFactors;
+                + ((indep_sig + fibre_dep_sig).*this.SomaInputFactors)';
         end
         
         function fx = evaluateCoreFun(this, x, t)
@@ -237,7 +237,7 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             % Neuro
             dm = sys.Motoneuron.Dims;
             for k=1:nf
-                pos = dm*(k-1)+1:dm;
+                pos = dm*(k-1)+(1:dm);
                 SP(pos,off_mech + pos) = sys.Motoneuron.JSparsityPattern;%#ok
             end
             
@@ -302,25 +302,25 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
         function J = getStateJacobian(this, y, t)
 %             J = this.getStateJacobianFD(y,t);
 %             return;
+
             sys = this.System;
             off_mech = sys.EndSecondOrderDofs;
             nf = sys.nfibres;
             
             %% Motoneuron
             mo = sys.Motoneuron;
-            ymoto = y(off_mech + (1:this.num_motoneuron_dof));
             dm = mo.Dims;
+            ymoto = reshape(y(off_mech + (1:this.num_motoneuron_dof)),dm,[]);
             Jdm = cell(1,nf);
             for k=1:nf
-                pos = dm*(k-1)+1:dm;
-                Jdm{k} = mo.Jdydt(ymoto(pos),t,k);
+                Jdm{k} = mo.Jdydt(ymoto(:,k),t,k);
             end
             
             %% Sarcomeres
             sa = sys.Sarcomere;
             dsa = sa.Dims;
             sarco_pos = this.num_motoneuron_dof + (1:this.num_sarco_dof);
-            ys = reshape(y(off_mech + sarco_pos),sa.Dims,[]);
+            ys = reshape(y(off_mech + sarco_pos),dsa,[]);
             if nf == 1
                 Jsa{1} = sa.Jdydt(ys, t);
             else
@@ -389,7 +389,7 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     daffk_dy = this.SpindleAffarentWeights*sp.getAfferentsJacobian(yspindle(:,k));
                     %dnoise_daff = this.Noise(:,round(t)+1).*this.SomaInputFactors(:);
                     alpha = 1.24635;
-                    dnoise_daff = (9^(1-alpha)*alpha*moto_signal.^(alpha-1)) .* this.Noise(:,round(t)+1)';
+                    dnoise_daff = (9^(1-alpha)*alpha*moto_signal.^(alpha-1))' .* this.Noise(:,round(t)+1);
                     i = [i repmat(moto_pos',1,9)];%#ok
                     j = [j repmat(9*(k-1) + (1:9),nf,1)];%#ok
                     s = [s dnoise_daff*daffk_dy/nf];%#ok
@@ -446,8 +446,8 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             x0_moto_sarco_spindle = zeros(sys.NumFirstOrderDofs,1);
             dm = sys.Motoneuron.Dims;
             dsa = sys.Sarcomere.Dims;
-            off = 0;
             for k=1:this.nfibres
+                off = 0;
                 x0ms = this.x0_motorunit.evaluate(ft(k));
                 % add moto
                 x0_moto_sarco_spindle(off + dm*(k-1) + (1:dm)) = x0ms(1:dm);

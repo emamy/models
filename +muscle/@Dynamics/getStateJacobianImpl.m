@@ -375,7 +375,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t, fibreforc
             end
             
             %% Grad_s K(u,w,s)
-            if hasforceargument
+            if hasforceargument && havefibres
                 for k = 1:this.nfibres
                     dPsk = alpha_prefactor * fibretypeweights(gp,k,m) * F * a0;
                     iS(cur_offS + relidx_pos) = elemidx_v_out_linear;
@@ -399,7 +399,7 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t, fibreforc
     end
     
     Jalpha = [];
-    if hasforceargument
+    if hasforceargument && havefibres
         Jalpha = sparse(iS,jS,sS,3*N,this.nfibres*56);
         % Remove those that are connected to dirichlet values
         Jalpha([sys.idx_v_bc_local],:) = [];

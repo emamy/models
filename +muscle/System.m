@@ -94,10 +94,7 @@ classdef System < models.BaseSecondOrderSystem
        HasFibres = false;
        HasFibreTypes = false;
        HasMotoPool = false;
-       % Property only useful when fullmodel.System is used.. comes due to
-       % use of inheritance. Better solutions could be thought of, but this
-       % is to get it going!
-       HasForceArgument = false;
+       
        a0;
        a0oa0;
        dNa0;
@@ -162,6 +159,11 @@ classdef System < models.BaseSecondOrderSystem
     
     properties(SetAccess=protected)
         Plotter;
+        
+        % Property only useful when fullmodel.System is used.. comes due to
+        % use of inheritance. Better solutions could be thought of, but this
+        % is to get it going!
+        HasForceArgument = false;
     end
     
     properties(Transient, Access=private)
@@ -333,7 +335,6 @@ classdef System < models.BaseSecondOrderSystem
                 
                 this.HasMotoPool = this.HasFibres && ~isempty(mc.Pool);
                 this.HasFibreTypes = this.HasFibres && ~isempty(mc.FibreTypeWeights);
-                this.HasForceArgument = isa(this,'models.fullmuscle.System');
                 this.HasTendons = ~isempty(mc.getTendonMuscleRatio(zeros(3,1)));
 
                 % Construct global indices in uw from element nodes. Each dof in
@@ -680,7 +681,7 @@ classdef System < models.BaseSecondOrderSystem
 
                 % Precomputations
                 dNgp = fe.gradN(fe.GaussPoints);
-                Ngp = fe.N(fe.GaussPoints);
+                %Ngp = fe.N(fe.GaussPoints);
                 
                 anulldyadanull = zeros(3,3,fe.GaussPointsPerElem*geo.NumElements);
                 dNanull = zeros(geo.DofsPerElement,fe.GaussPointsPerElem,geo.NumElements);

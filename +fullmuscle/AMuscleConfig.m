@@ -53,18 +53,12 @@ classdef AMuscleConfig < models.muscle.AMuscleConfig
         end
         
         function configureModel(this, model)
-            configureModel@models.muscle.AMuscleConfig(this, model);
-            
-%             nft = length(ft);
-            
-%             fe = this.PosFE;
-%             geo = fe.Geometry;
-%             SP = false(geo.NumElements,fe.GaussPointsPerElem, nft);
-%             sp = this.getSpindlePos;
-%             for k = 1:nft
-%                 SP(sp(1,k),sp(2,k),k) = true;
-%             end
             this.SpindlePositions = this.getSpindlePos;
+            if size(this.SpindlePositions,2) ~= length(this.FibreTypes)
+                disp(this.SpindlePositions)
+                error('Above printed spindle positions mismatch the number of %d fibre types configured for this model. Please revise getSpindlePos implementation.',length(this.FibreTypes));
+            end
+            configureModel@models.muscle.AMuscleConfig(this, model);
         end
         
 %         function configureModelFinal(this)

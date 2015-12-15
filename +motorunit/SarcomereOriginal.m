@@ -847,7 +847,7 @@ classdef SarcomereOriginal < KerMorObject
         end
         
         function setType(this, fibretypes)
-            sc = this.SarcoConst_base;   
+            sc = repmat(this.SarcoConst_base,1,length(fibretypes));   
             expo = this.InterpolExpo;
             gr{1} = [1:17,19:20];
             gr{2} = 18;
@@ -855,9 +855,10 @@ classdef SarcomereOriginal < KerMorObject
             gr{4} = 31;
             gr{5} = 21:24;
             for idx = 1:length(gr)
-                sc(this.SarcoConst_dynpos(1,gr{idx})) = ...
-                    (1-fibretypes.^expo(idx))*this.SarcoConst_slow(1,gr{idx}) ...
-                    + fibretypes.^expo(idx)*this.SarcoConst_fast(1,gr{idx});
+                fac = fibretypes.^expo(idx);
+                slow = bsxfun(@times,(1-fac),this.SarcoConst_slow(1,gr{idx})');
+                fast = bsxfun(@times,fac,this.SarcoConst_fast(1,gr{idx})'); 
+                sc(this.SarcoConst_dynpos(1,gr{idx}),:) = slow + fast;
             end
             this.SarcoConst = sc;
         end
