@@ -134,7 +134,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             fh = gcf;
             for ts = 1:length(t)
                 % Quit if figure has been closed
-                if ~ishandle(fh)
+                if ~ishandle(fh) || ~ishandle(h_geo)
                     break;
                 end
                 

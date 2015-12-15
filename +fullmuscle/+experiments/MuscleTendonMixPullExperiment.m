@@ -105,7 +105,7 @@ classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)
             %% Dirichlet conditions: Position (fix one side)
-            geo = this.PosFE.Geometry;
+            geo = this.FEM.Geometry;
             if this.Options.GeoNr == 3
                 displ_dir(1,geo.Elements(1:9,geo.MasterFaces(1,:))) = true;
             else
@@ -119,15 +119,15 @@ classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
     end
     
     methods(Static)
-        function test_MuscleTendonMixPullExperiment(geo)
+        function RunMuscleTendonMixPullExperiment(geo)
             if nargin < 1
                 geo = 1;
             end
             
             %% Init
-            c = experiments.MuscleTendonMixPullExperiment('GeoNr',geo);
+            c = models.fullmuscle.experiments.MuscleTendonMixPullExperiment('GeoNr',geo);
             m = c.createModel;
-            e = tools.ExperimentRunner(m);
+            e = models.muscle.ExperimentRunner(m);
             if geo == 3
                 rules = [3 5];
             else

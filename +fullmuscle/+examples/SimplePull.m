@@ -1,46 +1,43 @@
-classdef CPull < models.fullmuscle.AMuscleConfig
-    
-    properties(SetAccess=private)
-        Version;
-    end
-    
+classdef SimplePull < models.fullmuscle.AMuscleConfig
+    % A full muscle example featuring a pulling on one side
+    %
+    % There are 7 inputs of various characteristics for testing and playing
+    % around. Feel free to add you own in "getInputs" and invoke with
+    % <myinstance>.simulate(mu,<myinputidx>)
+    %
+    % Versions (Option "Version"): 
+    % 1:
+    % 2:
+    % 3:
+
     methods
-        function this = CPull(version, xpts, ypts)
+        function this = SimplePull(varargin)
             % Creates a Debug simple muscle model configuration.
             %
             % Single cube with same config as reference element
-            if nargin < 3
-                ypts = [0 10];
-                if nargin < 2
-                    if nargin < 1
-                        version = 1;
-                    end
-                    xpts = [0 10];
-                    if version == 3
-                        xpts = [0 10 20];
-                    end
-                end            
-            end
-            [pts, cubes] = geometry.Cube8Node.DemoGrid(xpts,ypts,[0 10]);
-            geo = geometry.Cube8Node(pts, cubes);
-            this = this@models.fullmuscle.AMuscleConfig(geo.toCube27Node);
+            this = this@models.fullmuscle.AMuscleConfig(varargin{:});
             this.NeumannCoordinateSystem = 'global';
-            this.Version = version;
+            % No external signals - whatsoever
+            this.NormalizedCortexSignal = @(t)zeros(size(t));
+            this.addOption('Version',1);
+            this.addOption('X',[0 10]);
+            this.addOption('Y',[0 10]);
+            this.init;
         end
         
         function configureModel(this, m)
             configureModel@models.fullmuscle.AMuscleConfig(this, m);
             
-            switch this.Version
-                case [1 2]
+            switch this.Options.Version
+                case {1,2}
                     m.T = 100;
-                    m.dt = .5;
+                    m.dt = .1;
                 case 3
                     m.T = 1000;
                     m.dt = 1;
             end
             
-            m.DefaultMu(1:4) = [1; 0; 1; 0];
+            m.DefaultMu(1:4) = [1; 0; .15; 0];
             m.DefaultMu(13) = .250; %[MPa]
             m.EnableTrajectoryCaching = true;
         end
@@ -54,7 +51,7 @@ classdef CPull < models.fullmuscle.AMuscleConfig
             % conditions.
             P = [];
             elem = 1;
-            if this.Version == 3
+            if this.Options.Version == 3
                 elem = 2;
             end
             if elemidx == elem && faceidx == 2
@@ -63,23 +60,26 @@ classdef CPull < models.fullmuscle.AMuscleConfig
         end
         
         function u = getInputs(this)
-            u{1,1} = this.getAlphaRamp(10,1);
-            u{1,2} = this.getAlphaRamp(100,1);
-            u{1,3} = this.getAlphaRamp(300,1);
-            u{1,4} = this.getAlphaRamp(10,1,200);
-            u{1,5} = this.getAlphaRamp(100,1,200);
-            u{1,6} = this.getAlphaRamp(300,1,200);
-            u{1,7} = this.getAlphaRamp(1000,1);
-            null = @(t)ones(size(t));
-            u(2,1:7) = repmat({null},1,7);
+            u{1} = this.getAlphaRamp(10,1);
+            u{2} = this.getAlphaRamp(1,1);
+            u{3} = this.getAlphaRamp(300,1);
+            u{4} = this.getAlphaRamp(10,1,200);
+            u{5} = this.getAlphaRamp(100,1,200);
+            u{6} = this.getAlphaRamp(300,1,200);
+            u{7} = this.getAlphaRamp(1000,1);
         end
         
     end
     
     methods(Access=protected)
         
+        function geo = getGeometry(this)
+            o = this.Options;
+            geo = fem.geometry.RegularHex27Grid(o.X,o.Y,[0 10]);
+        end
+        
         function [ft, ftw] = getFibreInfo(this)
-            switch this.Version
+            switch this.Options.Version
                 case 1
                    ft = 0;
                    ftw = this.getZeroFTWeights(1);
@@ -106,18 +106,20 @@ classdef CPull < models.fullmuscle.AMuscleConfig
         function sp = getSpindlePos(this)
             % Spindle position: first row element, second row gauss point
             % within element
-            switch this.Version
+            switch this.Options.Version
                 case 1
-                   sp = [1; 1];
+                   sp = [1 9]';
                 case 2
-                   sp = [1 1; 1 2];
+                   sp = [1 1
+                         1 2];
                 case 3
-                   sp = [1 1 1 2 2 2; 1 10 20 4 10 25]; 
+                   sp = [1 1 1 2 2 2
+                         1 10 20 4 10 25]; 
             end
         end
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)
-            geo = this.PosFE.Geometry;
+            geo = this.FEM.Geometry;
             % Always fix back side
             displ_dir(:,geo.Elements(1,geo.MasterFaces(1,:))) = true;
         end

@@ -143,7 +143,7 @@ classdef Debug < models.fullmuscle.AMuscleConfig
             [t,y] = m.simulate;
             df = m.getResidualForces(t,y);
             
-            m.plot('DF',df);
+            m.plot(t,y,'DF',df);
         end
     end
     
