@@ -51,66 +51,59 @@ classdef System < models.muscle.System;
         
         function configUpdated(this)
             mc = this.Model.Config;
-            ft = mc.FibreTypes;
-            this.nfibres = length(ft);
-            
-            %% Configure motoneurons
-            this.Motoneuron.setType(ft);
-            
-            %% Configure sarcomeres
-            this.Sarcomere.setType(ft);
-            
-            %% Configure Spindle (if set)
-            hassp = ~isempty(mc.SpindlePositions);
-            this.HasSpindle = hassp;
-            this.Spindle = [];
-            if hassp
-                this.Spindle = models.fullmuscle.Spindle;
-            end
-            
-            configUpdated@models.muscle.System(this);
-            
-            this.FO.configUpdated;
-            
-            % Compile information for plotting
-            this.Plotter = models.fullmuscle.MusclePlotter(this);
-        end
-        
-        function setConfig(this, mu, inputidx)
-            setConfig@models.muscle.System(this, mu, inputidx);
-            
-            if ~isempty(inputidx)
-                % Create an input substitute that uses the true external
-                % function and creates the effective noisy signal from it
-                maxcurrents = this.Motoneuron.getMaxMeanCurrents;
-                
-                % Get all type-dependent noises from motoneuron class
-                no = this.Motoneuron.Noise;%#ok
-                
-                % First row is neumann input
-                uneum = this.Inputs{1,inputidx};%#ok
-                
-                % Second row is external mean current input
-                uext = this.Inputs{2,inputidx};%#ok
-                
-                % Neumann input as first dimension
-                % Motoneuron base mean as second
-                % Motoneuron type-dep noises as third
-                ng = models.motoneuron.NoiseGenerator;
-                ustr = sprintf('@(t)[mu(3)*uneum(t); %g*ones(size(t)); ',ng.AP);
-                for k=1:this.nfibres
-                    rowfun = sprintf('no(%d,round(t)+1)*min(%g,mu(4)*uext(t)); ', k, maxcurrents(k));
-                    ustr = [ustr rowfun];%#ok
+            if ~isempty(mc)
+                ft = mc.FibreTypes;
+                this.nfibres = length(ft);
+
+                %% Configure motoneurons
+                this.Motoneuron.setType(ft);
+
+                %% Configure sarcomeres
+                this.Sarcomere.setType(ft);
+
+                %% Configure Spindle (if set)
+                hassp = ~isempty(mc.SpindlePositions);
+                this.HasSpindle = hassp;
+                this.Spindle = [];
+                if hassp
+                    this.Spindle = models.fullmuscle.Spindle;
                 end
-                ustr = [ustr ']'];
-                this.u = eval(ustr);
+
+                configUpdated@models.muscle.System(this);
+
+                this.FO.configUpdated;
             end
         end
         
-%         function uvwall = includeDirichletValues(this, t, uvw)
-%             uvwall_mech = includeDirichletValues@models.muscle.System(...
-%                 this, t, uvw(1:this.EndSecondOrderDofs,:));
-%             uvwall = [uvwall_mech; uvw(this.off_moto+1:end,:)];
+%         function setConfig(this, mu, inputidx)
+%             setConfig@models.muscle.System(this, mu, inputidx);
+%             
+%             if ~isempty(inputidx)
+%                 % Create an input substitute that uses the true external
+%                 % function and creates the effective noisy signal from it
+%                 maxcurrents = this.Motoneuron.getMaxMeanCurrents;
+%                 
+%                 % Get all type-dependent noises from motoneuron class
+%                 no = this.Motoneuron.Noise;%#ok
+%                 
+%                 % First row is neumann input
+%                 uneum = this.Inputs{1,inputidx};%#ok
+%                 
+%                 % Second row is external mean current input
+%                 uext = this.Inputs{2,inputidx};%#ok
+%                 
+%                 % Neumann input as first dimension
+%                 % Motoneuron base mean as second
+%                 % Motoneuron type-dep noises as third
+%                 ng = models.motoneuron.NoiseGenerator;
+%                 ustr = sprintf('@(t)[mu(3)*uneum(t); %g*ones(size(t)); ',ng.AP);
+%                 for k=1:this.nfibres
+%                     rowfun = sprintf('no(%d,round(t)+1)*min(%g,mu(4)*uext(t)); ', k, maxcurrents(k));
+%                     ustr = [ustr rowfun];%#ok
+%                 end
+%                 ustr = [ustr ']'];
+%                 this.u = eval(ustr);
+%             end
 %         end
         
     end
@@ -132,37 +125,6 @@ classdef System < models.muscle.System;
             % all the relevant quantities are stored there
             x0 = this.FO.x0;
         end
-        
-%         function x0 = assembleX0(this)
-%             x0 = zeros(this.NumTotalDofs,1);
-%             % Get muscle x0 - fills state space until motoneuron offset
-%             x0(1:this.NumStateDofs) = assembleX0@models.muscle.System(this);
-%         end
-        
-%         function Baff = assembleB(this)
-%             Baff = dscomponents.AffLinInputConv;
-%             
-%             %% Add neumann forces B into larger affine matrix in first
-%             % column
-%             % Assemble B matrix for neumann conditions from models.muscle.System
-%             Baff_neumann = assembleB@models.muscle.System(this);
-%             if ~isempty(Baff_neumann)
-%                 B = sparse(this.NumTotalDofs,this.nfibres+2);
-%                 B(1:this.off_moto,1) = Baff_neumann.getMatrix(1);
-%                 Baff.addMatrix(Baff_neumann.funStr{1},B);
-%             end
-%             
-% %             %% Add motoneuron external input signal
-% %             i = this.input_motoneuron_link_idx;
-% %             s = this.Motoneuron.FibreTypeNoiseFactors;
-% %             % Initialize with base noise entries in second column
-% %             B = sparse(i,ones(size(i))+1,s,this.num_all_dof,this.nfibres+2);
-% %             % Add single contribution for each fibre type thereafter
-% %             for k=1:this.nfibres
-% %                 B(i(k),k+2) = s(k);%#ok
-% %             end
-% %             Baff.addMatrix('1',B);
-%         end
     end
     
 end

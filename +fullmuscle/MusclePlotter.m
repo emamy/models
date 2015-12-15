@@ -25,6 +25,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             mc = this.Config;
             sys = this.System;
             sel = opts.MU;
+            fo = sys.FO;
             
             if isempty(opts.PM)
                 if opts.GeoOnly
@@ -86,7 +87,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                     hfreq = pm.nextPlot('frequency','Motoneuron frequency','t [ms]','Frequency [Hz]');
                     m = min(pd.freq(:));
                     M = max(pd.freq(:));
-                    if opts.FreqDet && ~sys.f.UseFrequencyDetector
+                    if opts.FreqDet && ~fo.UseFrequencyDetector
                         m = min(m, min(pd.freq_det(:)));
                         M = max(M, max(pd.freq_det(:)));
                     end
@@ -144,7 +145,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                     if ~opts.GeoOnly && opts.Spin && ~isempty(spos)
                         % Plot spindle locations
                         for k = sel
-                            u = yf(sys.idx_u_glob_elems(:,:,spos(1,k)));
+                            u = yf(sys.idx_u_elems_local(:,:,spos(1,k)));
                             spindle_pt = u*pd.Ngp(:,spos(2,k));
                             plot3(h_geo,spindle_pt(1),spindle_pt(2),...
                                 spindle_pt(3),'.',...
@@ -200,7 +201,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                     if opts.Freq
                         cla(hfreq);
                         plot(hfreq,time_part,pd.freq(sel,1:ts))
-                        if opts.FreqDet && ~sys.f.UseFrequencyDetector
+                        if opts.FreqDet && ~fo.UseFrequencyDetector
                             plot(hfreq,time_part,pd.freq_det(sel,1:ts),'r--');
                         end
                     end
@@ -236,15 +237,16 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             mc = this.Config;
             sys = this.System;
             nf = length(mc.FibreTypes);
+            fo = sys.FO;
             
-            if (opts.Freq && sys.f.UseFrequencyDetector) || opts.FreqDet
-                fd = sys.f.FrequencyDetector;
+            if (opts.Freq && fo.UseFrequencyDetector) || opts.FreqDet
+                fd = fo.FrequencyDetector;
                 nt = length(t);
                 freq = zeros(nf,nt);
                 fd.reset;
                 fd.WindowSize = 4;
                 for i=1:nt
-                    fd.processSignal(t(i),y(sys.f.moto_sarco_link_moto_out,i)');
+                    fd.processSignal(t(i),y(fo.moto_sarco_link_moto_out,i)');
                     freq(:,i) = fd.Frequency;
                 end
                 if ~isempty(opts.F)
@@ -259,19 +261,20 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             [pd, t, y] = updatePlotData@models.muscle.MusclePlotter(this, pd, opts, t, y);
             nt = length(t);
             
-            pd.ext_mean_current = sys.mu(4)*sys.Inputs{2,sys.inputidx}(t);
+            pd.ext_mean_current = sys.mu(4)*fo.normalized_cortex_signal(t);
             
             if opts.Moto
-                pos = sys.off_moto + (2:6:6*nf);
+                pos = sys.EndSecondOrderDofs + (2:6:6*nf);
                 pd.moto_vm = y(pos,:);
             end
             
             if opts.Sarco
-                pos = sys.off_sarco + (1:56:56*nf);
+                off_sarco = sys.EndSecondOrderDofs + fo.num_motoneuron_dof;
+                pos = off_sarco + (1:56:fo.num_sarco_dof);
                 pd.sarco_pot = y(pos,:);
                 
-                pos = sys.off_sarco + (53:56:56*nf);
-                force = bsxfun(@plus, -sys.sarco_mech_signal_offset, y(pos,:));
+                pos = off_sarco + (53:56:fo.num_sarco_dof);
+                force = bsxfun(@plus, -fo.sarco_mech_signal_offset, y(pos,:));
                 force = bsxfun(@times,mc.forces_scaling,force);
                 pd.sarco_force = force;
             end
@@ -279,20 +282,22 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             max_moto_signals = sys.Motoneuron.getMaxMeanCurrents(mc.FibreTypes);
             eff_mean_current = zeros(nf,nt);
             if opts.Spin
-                pos = sys.off_spindle + (9:9:9*nf);
+                off_spindle = sys.EndSecondOrderDofs ...
+                    + fo.num_motoneuron_dof + fo.num_sarco_dof;
+                pos = off_spindle + (9:9:fo.num_spindle_dof);
                 pd.spindle_lambda = y(pos,:);
             
                 % Freq also uses afferents if kernel expansions are used
-                if opts.Aff || (opts.Freq && ~sys.f.UseFrequencyDetector)
+                if opts.Aff || (opts.Freq && ~fo.UseFrequencyDetector)
                     afferents = zeros(2*nf,nt);
                     spindle_single_mean_current = zeros(nf,nt);
                     
                     for k=1:nf
-                        spindle_pos = sys.off_spindle + (k-1)*9 + (1:9);
+                        spindle_pos = off_spindle + (k-1)*9 + (1:9);
                         af_pos = (k-1)*2 + (1:2);
                         yspindle = y(spindle_pos,:);
                         afferents(af_pos,:) = sys.Spindle.getAfferents(yspindle);
-                        spindle_single_mean_current(k,:) = sys.f.SpindleAffarentWeights*afferents(af_pos,:);
+                        spindle_single_mean_current(k,:) = fo.SpindleAffarentWeights*afferents(af_pos,:);
                     end
                     spindle_mean_current = mean(spindle_single_mean_current,1);
                     for k=1:nf
@@ -301,7 +306,6 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                     pd.afferents = afferents;
                     pd.spindle_single_mean_current = spindle_single_mean_current;
                     pd.spindle_mean_current = spindle_mean_current;
-                    
                 end
             else
                 for k=1:nf
@@ -310,12 +314,12 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             end
             pd.eff_mean_current = eff_mean_current;
             
-            if opts.Freq && ~sys.f.UseFrequencyDetector
+            if opts.Freq && ~fo.UseFrequencyDetector
                 freq = zeros(nf,nt);
                 for k=1:nf
                     x = [ones(size(pd.eff_mean_current(k,:)))*mc.FibreTypes(k);...
                         pd.eff_mean_current(k,:)];
-                    freq(k,:) = sys.f.freq_kexp.evaluate(x);
+                    freq(k,:) = fo.freq_kexp.evaluate(x);
 %                     freq = reshape(freq,nf,[]);
                 end
                 pd.freq = freq;

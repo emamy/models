@@ -18,18 +18,8 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
     properties(Access=private)
         mslinkfun;
         mslinkfunderiv;
+        max_spindle_signals;
         
-        % The upper limit for the mean input current fed to the motoneuron
-        % soma. as in this current version this is the sum of spindle
-        % feedback and external signal, the max value needs to be available
-        % here to limit the sum.
-        % The external signal is added at an higher level in the ode (B*u
-        % component), but yet the sum of (spindle+ext_sig) <
-        % max_moto_signal, which is why the external signal is accessed
-        % here, too.
-        max_moto_signals;
-        
-        freq_kexp;
         fUseFD = false;
         nfibres;
         
@@ -37,12 +27,12 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
     end
     
     properties(SetAccess=private)
+        FrequencyDetector;
+        freq_kexp;
+        
         num_motoneuron_dof;
         num_sarco_dof;
         num_spindle_dof;
-%         off_moto;
-%         off_sarco;
-%         off_spindle;
         
         input_motoneuron_link_idx;
         moto_input_noise_factors;
@@ -50,10 +40,18 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
         
         moto_sarco_link_moto_out;
         moto_sarco_link_sarco_in;
-        spindle_moto_link_moto_in;
+        
+        % Motoneuron quantities
+        moto_signal_input_pos;
+        SomaInputFactors;
+        Noise;
+        IndepNoise_AP;
+        normalized_cortex_signal;
+        
+        % The initial value.
         x0;
         
-         % The offset for the sarcomere signals at t=0. Used to create
+        % The offset for the sarcomere signals at t=0. Used to create
         % alpha(X,0) = 0
         %
         % See also: assembleX0
@@ -67,16 +65,55 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             
             s = load(fullfile(fileparts(which('fullmuscle.Model')),'FrequencyKexp.mat'));
             this.freq_kexp = s.kexp.toTranslateBase;
+            
+            % Get fibretype-independent noise from NoiseGenerator
+            ng = models.motoneuron.NoiseGenerator;
+            this.IndepNoise_AP = ng.AP;
         end
         
         function configUpdated(this)
             sys = this.System;
             mc = sys.Model.Config;
             if ~isempty(mc)
-                this.nfibres = length(mc.FibreTypes);
+                ft = mc.FibreTypes;
+                this.nfibres = length(ft);
                 this.xDim = sys.NumTotalDofs;
                 this.assembleX0;
                 this.JSparsityPattern = this.computeSparsityPattern;
+                
+                this.FrequencyDetector = models.fullmuscle.FrequencyDetector(this.nfibres);
+                
+                %% Assemble noise signal for each fibre
+                cs = mc.NormalizedCortexSignal;
+                if isa(cs,'general.functions.AFunGen')
+                    cs = cs.getFunction;
+                elseif isempty(cs)
+                    error('The NormalizedCortexSignal field of the models config is empty.');
+                end
+                this.normalized_cortex_signal = cs;
+                
+                % Load the extra spindle upper limit poly (larger than the
+                % normal one by offset MaxExtraMeanSpindleSignal) and save
+                % the maximum allowed spindle signals
+                s = load(models.motoneuron.Model.FILE_UPPERLIMITPOLY);
+                poly = s.upperlimit_poly + mc.MaxExtraMeanSpindleSignal;
+                this.max_spindle_signals = polyval(poly, ft);
+                
+                ng = models.motoneuron.NoiseGenerator;
+                ng.setFibreType(ft(1));
+                thenoise = zeros(this.nfibres,length(ng.totalNoise));
+                thenoise(1,:) = ng.totalNoise;
+                for k=2:this.nfibres
+                    ng.setFibreType(ft(k));
+                    thenoise(k,:) = ng.totalNoise;
+                end
+                this.Noise = thenoise;
+            
+                % The noise signal added to the soma is multiplied with a
+                % fibretype-dependent factor (constant 8).
+                %this.SomaInputFactors = 1./(pi*ls.^2);
+                mo = sys.Motoneuron;
+                this.SomaInputFactors = 1./mo.getC8Value(ft);
             end
         end
        
@@ -101,8 +138,6 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             prepareSimulation@dscomponents.ACoreFun(this, mu);
             [this.mslinkfun, this.mslinkfunderiv] = this.MSLink.getFunction;
             
-            this.max_moto_signals = this.System.Motoneuron.getMaxMeanCurrents;
-            
             % Register the ODE callback for the frequency integration
             sys = this.System;
             slv = sys.Model.ODESolver;
@@ -126,8 +161,8 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             off_mech = sys.EndSecondOrderDofs;
             
             %% Motoneurons
-            ymoto = y(off_mech + (1:this.num_motoneuron_dof));
             mo = sys.Motoneuron;
+            ymoto = y(off_mech + (1:this.num_motoneuron_dof));
             dy_m = mo.dydt(reshape(ymoto,mo.Dims,[]),t);
             dy(1:this.num_motoneuron_dof) = dy_m(:);
             
@@ -145,8 +180,12 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             dy(this.moto_sarco_link_sarco_in) = ...
                 dy(this.moto_sarco_link_sarco_in) + signal;
             
-            if sys.HasSpindle
-                %% Spindles
+            %% External input signal
+            % Get current external signal
+            moto_signal = mo.checkMeanCurrent(this.mu(4)*this.normalized_cortex_signal(t));
+            
+            %% Spindles
+            if sys.HasSpindle    
                 sp = sys.Spindle;
                 spindle_pos = this.num_motoneuron_dof ...
                     + this.num_sarco_dof + (1:this.num_spindle_dof);
@@ -157,26 +196,31 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                 spindle_sig = this.SpindleAffarentWeights*sp.getAfferents(yspindle);
                 % Compute the mean value over all signals
                 spindle_sig = ones(1,nf)*mean(spindle_sig);
-                % Get current external signal
-                ext_sig = sys.Inputs{2,1}(t);
-                % Use the upper bounded sum
-                eff_spindle_sig = min(spindle_sig,this.max_moto_signals - ext_sig);
-                % Compute noisy signal
-                noise_sig = mo.Noise(:,round(t)+1)'.*eff_spindle_sig.*mo.FibreTypeNoiseFactors;
-    %             fprintf('Spindle->Neuron: adding %g at dy(%d)\n',noise_sig,this.spindle_moto_link_moto_in);
-                dy(this.spindle_moto_link_moto_in) = ...
-                    dy(this.spindle_moto_link_moto_in) + noise_sig';
-
-                % Spindle actual
+                % Compute the maximum possible effective spindle signal
+                spindle_sig = min(spindle_sig,this.max_spindle_signals - moto_signal);
+                % Add the signal to the current motoneuron signal
+                moto_signal = moto_signal + spindle_sig;
+                
+                % Spindle self-dynamics
+                % In the case of learned moto frequencies, we have an
+                % instant feedback to the spindle. This is why we need the
+                % spindle->moto signal first
+                
                 % Get motoneuron frequency
                 if this.fUseFD
                     freq = this.FrequencyDetector.Frequency;
                 else
-                    freq = this.freq_kexp.evaluate([sys.Model.Config.FibreTypes; eff_spindle_sig+ext_sig]);
+                    freq = this.freq_kexp.evaluate([sys.Model.Config.FibreTypes; moto_signal]);
                 end
                 dys = sp.dydt(yspindle,t,freq,sys.f.lambda_dot,0);
                 dy(spindle_pos) = dys(:);
             end
+            
+            %% Motoneuron exitation (external + spindle)
+            indep_sig = moto_signal * this.IndepNoise_AP;
+            fibre_dep_sig = 9*((moto_signal/9).^1.24635) .* this.Noise(:,round(t)+1)';
+            dy(this.moto_signal_input_pos) = dy(this.moto_signal_input_pos) ...
+                + (indep_sig + fibre_dep_sig).*this.SomaInputFactors;
         end
         
         function fx = evaluateCoreFun(this, x, t)
@@ -255,7 +299,7 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             end
         end
         
-        function [J, JLamDot] = getStateJacobian(this, y, t)
+        function J = getStateJacobian(this, y, t)
 %             J = this.getStateJacobianFD(y,t);
 %             return;
             sys = this.System;
@@ -303,6 +347,10 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                 J(this.moto_sarco_link_sarco_in(k),this.moto_sarco_link_moto_out(k)) = dsignal_dmotoout(k);
             end
             
+            %% External input signal
+            % Get current external signal
+            moto_signal = mo.checkMeanCurrent(this.mu(4)*this.normalized_cortex_signal(t));
+            
             %% Spindle stuff
             if sys.HasSpindle
                 sp = sys.Spindle;
@@ -319,8 +367,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     % Compute the mean value over all signals
                     spindle_sig = ones(1,nf)*mean(spindle_sig);
                     % Use the upper bounded sum
-                    eff_spindle_sig = min(this.max_moto_signals, spindle_sig + sys.Inputs{2,1}(t));
-                    freq_kexp_arg = [sys.Model.Config.FibreTypes; eff_spindle_sig];
+                    spindle_sig = min(spindle_sig,this.max_spindle_signals - moto_signal);
+                    moto_signal = moto_signal + spindle_sig;
+                    freq_kexp_arg = [sys.Model.Config.FibreTypes; moto_signal];
                     freq = this.freq_kexp.evaluate(freq_kexp_arg);
                 end
                 K = this.System.f;
@@ -338,7 +387,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     
                     %% Spindle to Motoneuron coupling
                     daffk_dy = this.SpindleAffarentWeights*sp.getAfferentsJacobian(yspindle(:,k));
-                    dnoise_daff = mo.Noise(:,round(t)+1).*mo.FibreTypeNoiseFactors(:);
+                    %dnoise_daff = this.Noise(:,round(t)+1).*this.SomaInputFactors(:);
+                    alpha = 1.24635;
+                    dnoise_daff = (9^(1-alpha)*alpha*moto_signal.^(alpha-1)) .* this.Noise(:,round(t)+1)';
                     i = [i repmat(moto_pos',1,9)];%#ok
                     j = [j repmat(9*(k-1) + (1:9),nf,1)];%#ok
                     s = [s dnoise_daff*daffk_dy/nf];%#ok
@@ -418,20 +469,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
         function updateDimensions(this, mc)
             nf = length(mc.FibreTypes);
             sys = this.System;
-            %this.nf = nf
             
             dm = sys.Motoneuron.Dims;
-            dsa = sys.Sarcomere.Dims;
-%              % Motoneurons are beginning after mechanics
-%             % The current NumXXDofs are computed by the mechanics-only
-%             % model, hence it's the correct offset.
-%             this.off_moto = this.NumStateDofs+this.NumDerivativeDofs;
-%             
-%             % Sarcomeres are beginning after motoneurons
-%             this.off_sarco = this.off_moto + fo.num_motoneuron_dof;
-%             
-%             % Spindles are beginning after sarcomeres
-%             this.off_spindle = this.off_sarco + fo.num_sarco_dof;
+            dsa = sys.Sarcomere.Dims;          
             this.num_motoneuron_dof = dm*nf;
             this.num_sarco_dof = dsa*nf;
             this.num_spindle_dof = 0;
@@ -444,19 +484,16 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             %% Component link indices
             % Get the positions where the input signal is mapped to the
             % motoneurons
-            this.input_motoneuron_link_idx = 2:dm:dm*nf;
-            this.sarco_output_idx = this.num_motoneuron_dof + (53:dsa:dsa*nf);
+            this.input_motoneuron_link_idx = 2:dm:this.num_motoneuron_dof;
+            this.sarco_output_idx = this.num_motoneuron_dof ...
+                + (53:dsa:this.num_sarco_dof);
             
             % same but improves readability
-            this.moto_sarco_link_moto_out = 2:dm:dm*nf; 
-            this.moto_sarco_link_sarco_in = this.num_motoneuron_dof + (1:dsa:dsa*nf);
-            this.spindle_moto_link_moto_in = this.moto_sarco_link_moto_out;
+            this.moto_sarco_link_moto_out = 2:dm:this.num_motoneuron_dof; 
+            this.moto_sarco_link_sarco_in = this.num_motoneuron_dof ...
+                + (1:dsa:this.num_sarco_dof);
+            this.moto_signal_input_pos = this.moto_sarco_link_moto_out;
         end
     end
-    
-    methods
-        
-    end
-    
 end
 

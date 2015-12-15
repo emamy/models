@@ -13,15 +13,6 @@ classdef Dynamics < models.muscle.Dynamics;
 % - \c Documentation http://www.agh.ians.uni-stuttgart.de/documentation/kermor/
 % - \c License @ref licensing
     
-    %% Properties for motoneuron - sarcomere linking
-    properties
-        FrequencyDetector        
-    end
-    
-    properties(Dependent)
-        UseFrequencyDetector;
-    end
-    
     properties(SetAccess=private)
         JLamDot;
     end
@@ -33,7 +24,6 @@ classdef Dynamics < models.muscle.Dynamics;
     methods
         function this = Dynamics(sys)
             this = this@models.muscle.Dynamics(sys);
-            
         end
         
         function configUpdated(this)
@@ -42,7 +32,6 @@ classdef Dynamics < models.muscle.Dynamics;
             this.nfibres = length(mc.FibreTypes);
             
             this.lambda_dot_pos = double.empty(2,0);
-            this.FrequencyDetector = models.fullmuscle.FrequencyDetector(this.nfibres);
             if sys.HasSpindle
                 this.lambda_dot_pos = mc.SpindlePositions;
                 this.lambda_dot = zeros(1,this.nfibres);

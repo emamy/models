@@ -38,6 +38,14 @@ classdef Model < models.muscle.Model
             this = this@models.muscle.Model(conf);
         end
         
+        function setConfig(this, value)
+            if ~isa(value, 'models.fullmuscle.AMuscleConfig')
+                error('Config must be a models.fullmuscle.AMuscleConfig instance');
+            end
+            setConfig@models.muscle.Model(this, value);
+            this.Plotter = models.fullmuscle.MusclePlotter(this.System);
+        end
+        
         function varargout = plotGeometrySetup(this, varargin)
             varargin = [varargin {'GeoOnly',true}];
             [varargout{1:nargout}] = plotGeometrySetup@models.muscle.Model(this,varargin{:});

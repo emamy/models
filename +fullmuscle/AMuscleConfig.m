@@ -12,6 +12,21 @@ classdef AMuscleConfig < models.muscle.AMuscleConfig
 %     - \c Homepage http://www.agh.ians.uni-stuttgart.de/research/software/kermor.html
 %     - \c Documentation http://www.agh.ians.uni-stuttgart.de/documentation/kermor/
 %     - \c License @ref licensing
+
+    properties
+        % The normalized external cortex signal to use for muscle
+        % activation. The amplitude is chosen using parameter mu(4), while
+        % this function (may) describe change over time.
+        %
+        % @type general.function.AFunGen|function_handle @default @(t)1
+        NormalizedCortexSignal = @(t)ones(size(t));
+        
+        % Extra mean current / motoneuron signal that can be added on top
+        % of the default upperlimit_poly caused by spindle feedback
+        %
+        % @type double @default 1
+        MaxExtraMeanSpindleSignal = 1;
+    end
     
     properties(SetAccess=private)
         % The different discrete fibre types this full muscle knows
@@ -68,9 +83,7 @@ classdef AMuscleConfig < models.muscle.AMuscleConfig
             % model. @type cell @default {@(t)1}
             
             % First row is neumann input
-            u{1,1} = this.getAlphaRamp(30,1);
-            % Second row is external mean current input
-            u{2,1} = @(t)1;
+            u{1} = this.getAlphaRamp(30,1);
         end
         
     end
