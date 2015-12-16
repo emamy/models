@@ -125,7 +125,7 @@ classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
             end
             
             %% Init
-            c = models.fullmuscle.experiments.MuscleTendonMixPullExperiment('GeoNr',geo);
+            c = models.muscle.experiments.MuscleTendonMixPullExperiment('GeoNr',geo);
             m = c.createModel;
             e = models.muscle.ExperimentRunner(m);
             if geo == 3
@@ -189,8 +189,8 @@ classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
             if geo == 2
                 pm.savePlots(c.ImgDir,'Selection',11);
             else
-                pm.savePlots(c.ImgDir,'Selection',2:2:12,'Format','pdf');
-                pm.savePlots(c.ImgDir,'Selection',1:2:11);
+                pm.savePlots(c.ImgDir,'Selection',2:2:length(pm.Figures),'Format','pdf');
+                pm.savePlots(c.ImgDir,'Selection',1:2:length(pm.Figures)-1);
             end
             pm.closeAll;
             
@@ -225,13 +225,13 @@ classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
                 rule = [3 7 20];
             end
             for k = 1:3
-                for r = 1:3
+                for r = 1:length(rule)
                     m.setGaussIntegrationRule(rule(r));
                     c.CurrentConfigNr = conf(k);
                     m.Plotter.GeoView = [32 40];
                     m.plotGeometrySetup(pm);
                     pm.FilePrefix = sprintf('geo_%d_conf_%d_gauss_%d',geo,conf(k),rule(r));
-                    pm.savePlots(c.ImgDir,'Format','jpg');
+                    pm.savePlots(c.ImgDir,'Format','png','Close',true);
                 end
             end
             pm.closeAll;

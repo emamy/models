@@ -56,10 +56,7 @@ classdef AExperimentModelConfig < models.muscle.AMuscleConfig
             if isempty(this.OutputDir)
                 mc = metaclass(this);
                 [~,n] = fileparts(which(mc.Name));
-                % Put relative to models.muscle.Model class - that wont change
-                % location!
-                p = fullfile(fileparts(which('models.muscle.Model')),'..','..','data');
-                outdir = fullfile(p,n);
+                outdir = fullfile(KerMor.App.DataDirectory,n);
                 this.OutputDir = outdir;
             end
         end
