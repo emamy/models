@@ -54,7 +54,7 @@ classdef AMuscleConfig < models.muscle.AMuscleConfig
         
         function configureModel(this, model)
             this.SpindlePositions = this.getSpindlePos;
-            if size(this.SpindlePositions,2) ~= length(this.FibreTypes)
+            if ~isempty(this.SpindlePositions) && size(this.SpindlePositions,2) ~= length(this.FibreTypes)
                 disp(this.SpindlePositions)
                 error('Above printed spindle positions mismatch the number of %d fibre types configured for this model. Please revise getSpindlePos implementation.',length(this.FibreTypes));
             end

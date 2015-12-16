@@ -114,26 +114,20 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                 %this.SomaInputFactors = 1./(pi*ls.^2);
                 mo = sys.Motoneuron;
                 this.SomaInputFactors = 1./mo.getC8Value(ft);
+                
+                %% Component link indices
+                % Get the positions where the input signal is mapped to the
+                % motoneurons
+                dm = sys.Motoneuron.Dims;
+                dsa = sys.Sarcomere.Dims;
+                this.input_motoneuron_link_idx = 2:dm:this.num_motoneuron_dof;
+                this.moto_signal_input_pos = 2:dm:this.num_motoneuron_dof;
+                this.moto_sarco_link_moto_out = sys.EndSecondOrderDofs + this.moto_signal_input_pos;
+                this.moto_sarco_link_sarco_in = this.num_motoneuron_dof ...
+                    + (1:dsa:this.num_sarco_dof);
             end
         end
        
-        
-%         function projected = project(this, V, W)
-%             projected = this.clone;
-%             projected = project@dscomponents.ACoreFun(this, V, W, projected);
-%         end
-%         
-%         function copy = clone(this)
-%             % Create new instance
-%             copy = models.muscle.Constraint(this.System);
-%             copy = clone@dscomponents.ACoreFun(this, copy);
-%             copy.ComputeUnassembled = this.ComputeUnassembled;
-%             copy.fsys = this.fsys;
-%             copy.idx_p_elems_unass = this.idx_p_elems_unass;
-%             copy.Sigma = this.Sigma;
-%             copy.fDim_unass = this.fDim_unass;
-%         end
-
         function prepareSimulation(this, mu)
             prepareSimulation@dscomponents.ACoreFun(this, mu);
             [this.mslinkfun, this.mslinkfunderiv] = this.MSLink.getFunction;
@@ -174,7 +168,7 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             dy(sarco_pos) = dys(:);
             
             %% Link of motoneurons to sarcomeres
-            moto_out = y(off_mech + this.moto_sarco_link_moto_out);
+            moto_out = y(this.moto_sarco_link_moto_out);
             signal = this.mslinkfun(moto_out).*moto_out./sa.SarcoConst(1,:)';
             % Add signal to corresponding locations
             dy(this.moto_sarco_link_sarco_in) = ...
@@ -265,7 +259,8 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             % first entry of sarco gets 2nd output of motoneuron
             pos_sarco = nf*dm + (1:dsa:nf*dsa);
             pos_moto = off_mech + (1:dm:nf*dm) + 1;
-            SP(pos_sarco,pos_moto) = true;            
+            pos = sub2ind(size(SP),pos_sarco,pos_moto);
+            SP(pos) = true; 
             
             if sys.HasSpindle
                 sp = sys.Spindle;
@@ -341,11 +336,13 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             J(pos,off_mech+pos) = blkdiag(Jdm{:},Jsa{:});
             
             %% Motoneuron to Sarcomere coupling
-            moto_out = y(off_mech + this.moto_sarco_link_moto_out);
+            moto_out = y(this.moto_sarco_link_moto_out);
             dsignal_dmotoout = (this.mslinkfunderiv(moto_out).*moto_out + this.mslinkfun(moto_out))./sa.SarcoConst(1,:)';
-            for k=1:nf
-                J(this.moto_sarco_link_sarco_in(k),this.moto_sarco_link_moto_out(k)) = dsignal_dmotoout(k);
-            end
+            pos = sub2ind(size(J),this.moto_sarco_link_sarco_in,this.moto_sarco_link_moto_out);
+            J(pos) = dsignal_dmotoout;
+%             for k=1:nf
+%                 J((k),(k)) = dsignal_dmotoout(k);
+%             end
             
             %% External input signal
             % Get current external signal
@@ -481,18 +478,13 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             end
             this.fDim = (dm+dsa)*nf + this.num_spindle_dof;
             
-            %% Component link indices
-            % Get the positions where the input signal is mapped to the
-            % motoneurons
-            this.input_motoneuron_link_idx = 2:dm:this.num_motoneuron_dof;
+            % This quantity is set here in updatedimensions as the
+            % configUpdated method of the Dynamics class uses this value.
+            % As the configUpdated for this class (i.e. the FO component)
+            % is called after that (and in general there is no right order
+            % to do so), it's put here.
             this.sarco_output_idx = this.num_motoneuron_dof ...
                 + (53:dsa:this.num_sarco_dof);
-            
-            % same but improves readability
-            this.moto_sarco_link_moto_out = 2:dm:this.num_motoneuron_dof; 
-            this.moto_sarco_link_sarco_in = this.num_motoneuron_dof ...
-                + (1:dsa:this.num_sarco_dof);
-            this.moto_signal_input_pos = this.moto_sarco_link_moto_out;
         end
     end
 end

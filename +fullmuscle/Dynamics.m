@@ -104,45 +104,50 @@ classdef Dynamics < models.muscle.Dynamics;
                 end
             end
             
-            % Also test correct computation of JLamDot
-            d = size(y,1);
-            dx = ones(d,1)*sqrt(eps(class(y))).*max(abs(y),1);
-            sys.prepareSimulation(mu, sys.Model.DefaultInput);
-            this.evaluate(y,t);
-            ldotbase = this.lambda_dot;
-            uv = sys.NumStateDofs+sys.NumDerivativeDofs;
-            LAM = repmat(ldotbase',1,uv);
-            dlam = zeros(this.nfibres,uv);
-            for k = 1:uv
-                h = zeros(d,1);
-                h(k) = dx(k);
-                this.evaluate(y+h,t);
-                dlam(:,k) = this.lambda_dot;
-            end
-            JLamFD = (dlam - LAM)./dx(1:uv)';
-            % Sets the this.JLamDot quantity
-            this.getStateJacobian(y,t);
-            difn = norm(JLamFD-this.JLamDot);
-            res = difn < 1e-13;
-            
-            freq = ones(1,this.nfibres)*30;
-            dx = ones(this.nfibres,1)*sqrt(eps(class(ldotbase))).*max(abs(ldotbase),1);
-            sp = sys.Spindle;
-            ds = sp.Dims;
-            fo = sys.FO;
-            off_spindle = sys.EndSecondOrderDofs + fo.num_motoneuron_dof + fo.num_sarco_dof;
-            yspindle = reshape(y(off_spindle + (1:fo.num_spindle_dof)), ds,[]);
-            for k = 1:this.nfibres
-                fx = sp.dydt(yspindle(:,k),t,freq(k),ldotbase(k),0);
-                fxh_dldot = sp.dydt(yspindle(:,k),t,freq(k),ldotbase(k)+dx(k),0);
-                fxh_dmoto = sp.dydt(yspindle(:,k),t,freq(k)+dx(k),ldotbase(k),0);
-                Jspin_Ldot_FD = (fxh_dldot-fx) / dx(k);
-                Jspin_moto_FD = (fxh_dmoto-fx) / dx(k);
-                [~, Jspin_dLdot, Jspin_dmoto] = sp.Jdydt(yspindle(:,k), t, freq(k), ldotbase(k), 0);
-                difn = norm(Jspin_Ldot_FD - Jspin_dLdot');
-                res = res && difn < 1e-7;
-                difn = norm(Jspin_moto_FD - Jspin_dmoto');
-                res = res && difn < 1e-7;
+            % Also test correct computation of JLamDot (if spindles are
+            % around)
+            if ~isempty(this.lambda_dot_pos)
+                d = size(y,1);
+                dx = ones(d,1)*sqrt(eps(class(y))).*max(abs(y),1);
+                sys.prepareSimulation(mu, sys.Model.DefaultInput);
+                this.evaluate(y,t);
+                ldotbase = this.lambda_dot;
+                uv = sys.NumStateDofs+sys.NumDerivativeDofs;
+                LAM = repmat(ldotbase',1,uv);
+                dlam = zeros(this.nfibres,uv);
+                for k = 1:uv
+                    h = zeros(d,1);
+                    h(k) = dx(k);
+                    this.evaluate(y+h,t);
+                    dlam(:,k) = this.lambda_dot;
+                end
+                JLamFD = (dlam - LAM)./dx(1:uv)';
+                % Sets the this.JLamDot quantity
+                this.getStateJacobian(y,t);
+                difn = norm(JLamFD-this.JLamDot);
+                res = difn < 1e-13;
+                
+                freq = ones(1,this.nfibres)*30;
+                dx = ones(this.nfibres,1)*sqrt(eps(class(ldotbase))).*max(abs(ldotbase),1);
+                sp = sys.Spindle;
+                ds = sp.Dims;
+                fo = sys.FO;
+                off_spindle = sys.EndSecondOrderDofs + fo.num_motoneuron_dof + fo.num_sarco_dof;
+                yspindle = reshape(y(off_spindle + (1:fo.num_spindle_dof)), ds,[]);
+                for k = 1:this.nfibres
+                    fx = sp.dydt(yspindle(:,k),t,freq(k),ldotbase(k),0);
+                    fxh_dldot = sp.dydt(yspindle(:,k),t,freq(k),ldotbase(k)+dx(k),0);
+                    fxh_dmoto = sp.dydt(yspindle(:,k),t,freq(k)+dx(k),ldotbase(k),0);
+                    Jspin_Ldot_FD = (fxh_dldot-fx) / dx(k);
+                    Jspin_moto_FD = (fxh_dmoto-fx) / dx(k);
+                    [~, Jspin_dLdot, Jspin_dmoto] = sp.Jdydt(yspindle(:,k), t, freq(k), ldotbase(k), 0);
+                    difn = norm(Jspin_Ldot_FD - Jspin_dLdot');
+                    res = res && difn < 1e-7;
+                    difn = norm(Jspin_moto_FD - Jspin_dmoto');
+                    res = res && difn < 1e-7;
+                end
+            else
+                res = 1;
             end
             
             res = res & test_Jacobian@models.muscle.Dynamics(this, y, t, mu);

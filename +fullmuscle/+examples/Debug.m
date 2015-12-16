@@ -1,43 +1,46 @@
-classdef Debug < models.fullmuscle.AMuscleConfig
-    % A simple configuration for Debug purposes.
+classdef Debug < models.fullmuscle.AMuscleConfig & matlab.unittest.TestCase
+    % A set of simple configurations for debug purposes.
+    % Select with "Version" option.
     % 
-    % Uses a single undeformed cube with triquadratic position shape
-    % functions and trilinear shape functions for pressure.
+    % Versions:
+    % 1-3: One element with increasing number of motor units / fibre types
+    % 4: Setup without spindle
+    % 5: One side is pulled
+    %
+    
+    properties(Constant)
+        RS = RandStream('mt19937ar','Seed',1);
+    end
     
     methods
         function this = Debug(varargin)
             this = this@models.fullmuscle.AMuscleConfig(varargin{:});
-            this.addOption('Version',1);
+            this.addOption('Spindle',true);
+            %this.addOption('Pull',.1);
+            this.addOption('ExtSig',true);
+            this.addOption('NFibres',3);
             
             this.init;
         end
         
         function configureModel(this, m)
             configureModel@models.fullmuscle.AMuscleConfig(this, m);
+            
+            m.T = 50;
+            m.dt = .1;
+
             m.ODESolver = solvers.MLode15i;
-            switch this.Options.Version
-            case {1,2}
-                m.T = 100;
-                m.dt = .1;
-                
-                m.ODESolver.RelTol = .001;
-                m.ODESolver.AbsTol = .01;
-            end
+            m.ODESolver.RelTol = .001;
+            m.ODESolver.AbsTol = .01;
+            
+%             o = this.Options;
         end
         
-        function P = getBoundaryPressure(this, elemidx, faceidx)
+        function P = getBoundaryPressure(~, elemidx, faceidx)
             % Determines the neumann forces on the boundary.
-            %
-            % The unit for the applied quantities is megaPascal [MPa]
-            %
-            % In the default implementation there are no force boundary
-            % conditions.
             P = [];
-            if this.Options.Version == 10
-%                 if any(elemidx - (9:16) == 0) && faceidx == 2
-                if elemidx == 1 && faceidx == 2
-                   P = 2;
-                end
+            if elemidx == 1 && faceidx == 2
+               P = 1;
             end
         end
     end
@@ -50,55 +53,32 @@ classdef Debug < models.fullmuscle.AMuscleConfig
         end
         
         function [ft, ftw] = getFibreInfo(this)
-            switch this.Options.Version
-                case 1
-                    ft = 0;
-                    ftw = this.getZeroFTWeights(length(ft));
-                    % Test: Use only slow-twitch muscles
-                    ftw(:,1,:) = .4;
-                case 2
-                    ft = [0 .4 1];
-                    ftw = this.getZeroFTWeights(length(ft));
-                    ftw(:,1,:) = .4;
-                    ftw(:,2,:) = .2;
-                    ftw(:,3,:) = .4;
-                case 3
-                    ft = [0 .2 .4 .6 .8 1];
-                    ftw = this.getZeroFTWeights(length(ft));
-                    ftw(:,1,:) = .4;
-                    ftw(:,2,:) = .05;
-                    ftw(:,3,:) = .05;
-                    ftw(:,4,:) = .1;
-                    ftw(:,5,:) = .2;
-                    ftw(:,6,:) = .2;
+            nf = this.Options.NFibres;
+            % With this we are able to get a clean zero which wont happen
+            % for "rand"
+            ft = sort((this.RS.randperm(500,nf)-1)/499);
+            ftw = this.getZeroFTWeights(length(ft));
+            w = rand(1,nf);
+            w = w./sum(w);
+            for k = 1:nf
+                ftw(:,k,:) = w(k);
             end
         end
         
         function sp = getSpindlePos(this)
             % Spindle position: first row element, second row gauss point
             % within element
-            switch this.Options.Version
-                case 1
-                    sp = [1; 1];
-                case 2
-                    sp = [1 1 1
-                          1 10 20];
-                case 3
-                    sp = [ones(1,6)
-                          1 6 10 14 20 26];
+            sp = [];
+            if this.Options.Spindle
+                nf = this.Options.NFibres;
+                gp = this.RS.randperm(this.FEM.GaussPointsPerElem,nf);
+                sp = [ones(1,nf); gp];
             end
         end
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)
             geo = this.FEM.Geometry;
-            % Always fix back side
-%             if this.Version == 10
-%                 displ_dir(1,geo.Elements(1,geo.MasterFaces(1,:))) = true;
-%             else
-                displ_dir(:,geo.Elements(1,geo.MasterFaces(1,:))) = true;
-%                 displ_dir(:,geo.Elements(1,geo.MasterFaces(2,:))) = true;
-%                 displ_dir(:,geo.Elements(1,geo.MasterFaces(3,:))) = true;
-%             end
+            displ_dir(:,geo.Elements(1,geo.MasterFaces(1,:))) = true;
         end
         
 %         function [velo_dir, velo_dir_val] = setVelocityDirichletBC(this, velo_dir, velo_dir_val)
@@ -115,34 +95,26 @@ classdef Debug < models.fullmuscle.AMuscleConfig
 %             end
 %         end
         
-        function anull = seta0(this, anull)
-            switch this.Options.Version
-            case {1,2,3}
-                anull(1,:,:) = 1;
-%             case {4,7}
-%                 % No fibres
-%             case {5,8}
-%                 % Stretch along fibre direction
-%                 anull(1,:,:) = 1;
-%             case {6,9}
-%                 % Stretch perpendicular to fibre direction
-%                 anull(2,:,:) = 1;
-%             case {10,11}
-%                 anull(:,:,:) = 0;
-            end
+        function anull = seta0(~, anull)
+            anull(1,:,:) = 1;
         end
     end
     
-    methods(Static)
-        function test_DebugConfig(version)
-            if nargin < 1
-                version = 1;
-            end
-            m = models.fullmuscle.Model(...
-                models.fullmuscle.examples.Debug('Version',version));
+    properties(TestParameter)
+        pull = {0 .1};
+        cortex_sig = {0 3 6};
+        spindle = {true false};
+        nfibres = {1 4};
+    end
+    
+    methods(Test)
+        function TestFullMuscle(~, pull, cortex_sig, spindle, nfibres)
+            mc = models.fullmuscle.examples.Debug(...
+                'Pull',pull,'ExtSig',cortex_sig, 'Spindle', spindle,...
+                'NFibres',nfibres);
+            m = mc.createModel;
             [t,y] = m.simulate;
             df = m.getResidualForces(t,y);
-            
             m.plot(t,y,'DF',df);
         end
     end
