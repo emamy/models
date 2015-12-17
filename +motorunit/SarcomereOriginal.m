@@ -789,7 +789,7 @@ classdef SarcomereOriginal < KerMorObject
                 J(45,31) = -c(79)*y(45);
                 J(45,41) = c(80);
                 J(45,43) = c(82);
-                J(45,44) = c(83)/c(103)*y(2);
+                J(45,44) = c(83)/c(103);%*y(2)
                 J(45,45) = - c(79)*y(31) - c(81)*y(47) - c(83)/c(103);
                 J(45,47) = -c(81)*y(45);
                 J(46,34) = c(74)*y(46);
@@ -1009,6 +1009,31 @@ classdef SarcomereOriginal < KerMorObject
     end
     
     methods(Static)
+        
+        function test_Jacobian
+            s = models.motorunit.SarcomereOriginal;
+            s.setType(.5);
+            dsa = s.Dims;
+            xall = rand(dsa,10);
+            xall(:,1) = 0;
+            
+            for k=1:size(xall,2)
+                x = xall(:,k);
+                X = repmat(x,1,dsa);
+                dx = ones(dsa,1)*sqrt(eps(class(x))).*max(abs(x),1);
+                DX = sparse(1:dsa,1:dsa,dx,dsa,dsa);
+
+                % Evaluate makes use of built-in multi-argument evaluation
+                JFD = (s.dydt(X+DX) - repmat(s.dydt(x),1,dsa))*diag(1./dx);
+                J = s.Jdydt(x);
+                JSP = s.JSparsityPattern;
+                diff = abs(JFD-J);
+                rel = abs(diff./J);
+                maxabs = max(diff(JSP))
+                maxrel = max(rel(JSP))
+            end
+        end
+        
         function createSarcoJacobian
             %% Init
             c = sym('c',[105 1]);
