@@ -114,7 +114,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                 axis(h5,[0 t(end) min(pd.eff_mean_current(:)) max(pd.eff_mean_current(:))+eps]);
                 hold(h5,'on');
 
-                if opts.Ext
+                if opts.Ext && ~isempty(sys.inputidx)
                     hext = pm.nextPlot('ext_neumann',...
                         'External pressure','t [ms]','Normal pressure [MPa]');
                     axis(hext,[0 t(end) min(pd.uneum(:)) max(pd.uneum(:))+eps]);
@@ -206,7 +206,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                         end
                     end
 
-                    if opts.Ext
+                    if opts.Ext && ~isempty(sys.inputidx)
                         cla(hext);
                         plot(hext, time_part, pd.uneum(1:ts));
     %                     cla(hext_f);
@@ -326,7 +326,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             end
             
             % External neumann forces
-            if opts.Ext
+            if opts.Ext && ~isempty(sys.inputidx)
                 pd.uneum = sys.Inputs{1,sys.inputidx}(t)*sys.mu(3);
 %                 pd.forcefactor = norm(pd.meanforces(:,1));
             end

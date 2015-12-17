@@ -239,9 +239,11 @@ function [JK, Jalpha, JLamDot] = getStateJacobianImpl(this, uvwdof, t, fibreforc
                             % dLdot / dv[i]_x
                             JLamDot(idxv(3)) = JLamDot(idxv(3)) + Fa0'*Ua0;
                         end
-                        ildot = [ildot; k*ones(2*numXYZDofs_pos,1)]; %#ok
-                        jldot = [jldot; elemidx_u_glob(:); elemidx_v_glob(:)];%#ok
-                        sldot = [sldot; JLamDot];%#ok
+                        for idx = 1:length(k)
+                            ildot = [ildot; k(idx)*ones(2*numXYZDofs_pos,1)]; %#ok
+                            jldot = [jldot; elemidx_u_glob(:); elemidx_v_glob(:)];%#ok
+                            sldot = [sldot; JLamDot];%#ok
+                        end
                     end
                 end
             end

@@ -442,6 +442,16 @@ classdef System < models.BaseSecondOrderSystem
                 val = this.val_expl_v_bc;
             end
         end
+        
+        function updateSparsityPattern(this)
+            % For efficiency, we only set D if mu(1) is nonzero - this
+            % happens in prepareSimulation above. For the correct sparsity
+            % pattern we simply use the full one (rather indicate more than
+            % too few possible non-zero locations)
+            this.D = this.fD;
+            updateSparsityPattern@models.BaseSecondOrderSystem(this);
+            this.D = [];
+        end
     end
     
     methods

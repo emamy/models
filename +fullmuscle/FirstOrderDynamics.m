@@ -213,6 +213,7 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             %% Motoneuron exitation (external + spindle)
             indep_sig = moto_signal * this.IndepNoise_AP;
             fibre_dep_sig = 9*((moto_signal/9).^1.24635) .* this.Noise(:,round(t)+1)';
+%             fibre_dep_sig = moto_signal.* this.Noise(:,round(t)+1)';
             dy(this.moto_signal_input_pos) = dy(this.moto_signal_input_pos) ...
                 + ((indep_sig + fibre_dep_sig).*this.SomaInputFactors)';
         end
@@ -376,8 +377,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     spindle_pos = off_spindle + ds*(k-1) + (1:ds);
                     
                     %% Spindles by themselves
-                    [Jsp{k}, Jspin_dLdot, Jspin_dmoto] = ...
+                    [Jsp, Jspin_dLdot, Jspin_dmoto] = ...
                         sp.Jdydt(yspindle(:,k), t, freq(k), K.lambda_dot(k), 0);
+                    J(spindle_pos,off_mech+spindle_pos) = Jsp;
                     
                     %% Mechanics to spindle coupling
                     J(spindle_pos,1:sys.NumStateDofs+sys.NumDerivativeDofs) = Jspin_dLdot'*K.JLamDot(k,:);
@@ -386,16 +388,19 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     daffk_dy = this.SpindleAffarentWeights*sp.getAfferentsJacobian(yspindle(:,k));
                     %dnoise_daff = this.Noise(:,round(t)+1).*this.SomaInputFactors(:);
                     alpha = 1.24635;
-                    dnoise_daff = (9^(1-alpha)*alpha*moto_signal.^(alpha-1))' .* this.Noise(:,round(t)+1);
+%                     dnoise_daff = (9^(1-alpha)*alpha*moto_signal.^(alpha-1))' .* this.Noise(:,round(t)+1);
+                    dnoise_daff = moto_signal' .* this.Noise(:,round(t)+1);
                     i = [i repmat(moto_pos',1,9)];%#ok
                     j = [j repmat(9*(k-1) + (1:9),nf,1)];%#ok
                     s = [s dnoise_daff*daffk_dy/nf];%#ok
                     
                     %% Moto to Spindle coupling for learned frequencies
+                    % This is effectively a self-coupling as the response
+                    % of the motoneuron frequency is immediate
                     if ~this.fUseFD
                         kexp_Jac = this.freq_kexp.getStateJacobian(freq_kexp_arg(:,k));
                         
-                        J(spindle_pos,spindle_pos) = J(spindle_pos,spindle_pos) ...
+                        J(spindle_pos,off_mech+spindle_pos) = J(spindle_pos,off_mech+spindle_pos) ...
                             + Jspin_dmoto'*kexp_Jac(2)*daffk_dy;
                     end
                 end

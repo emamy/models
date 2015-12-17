@@ -87,8 +87,10 @@ function [SPK, SPalpha, SPLamDot] = computeSparsityPattern(this)
             if ~isempty(this.lambda_dot_pos)
                 k = find(this.lambda_dot_pos(1,:) == m & this.lambda_dot_pos(2,:) == gp);
                 if ~isempty(k)
-                    ildot = [ildot; k*ones(6*dofsperelem_displ,1)];
-                    jldot = [jldot; elemidx_u(:); elemidx_v(:)];
+                    for idx = 1:length(k)
+                        ildot = [ildot; k(idx)*ones(6*dofsperelem_displ,1)];
+                        jldot = [jldot; elemidx_u(:); elemidx_v(:)];
+                    end
                 end
             end
         end
@@ -105,7 +107,7 @@ function [SPK, SPalpha, SPLamDot] = computeSparsityPattern(this)
     if this.nfibres > 0
         SPalpha = sparse(double(iS),double(jS),ones(size(iS)),3*N,this.nfibres*56);
         % Remove those that are connected to dirichlet values
-        SPalpha([sys.idx_u_bc_local sys.idx_v_bc_local],:) = [];
+        SPalpha([sys.idx_u_bc_local; sys.idx_v_bc_local],:) = [];
         SPalpha = logical(SPalpha);
     end
     
