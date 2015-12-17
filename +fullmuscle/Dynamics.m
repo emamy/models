@@ -156,8 +156,9 @@ classdef Dynamics < models.muscle.Dynamics;
     
     methods(Static)
         function res = test_Dynamics
-            m = models.fullmuscle.Model(fullmuscle.CPull(1));
-            f = m.System.f;
+            mc = models.fullmuscle.examples.SimplePull;
+            m = mc.createModel;
+            f = m.System.FO;
             res = true;
             
             f.UseFrequencyDetector = false;

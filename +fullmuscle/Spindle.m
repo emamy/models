@@ -177,11 +177,12 @@ classdef Spindle < KerMorObject
             J(2,9) = - (c(49)*c(53)*(c(41) - 1))/c(48) - (c(79)*c(83)*(c(71) - 1))/c(78);
         end
         
-        function plot(this, t, y)
+        function plot(this, t, y, pm)
             y = y';
-            %pm = PlotManager(false,3,3);
-            pm = PlotManager(false,2,2);
-            pm.LeaveOpen = true;
+            if nargin < 4
+                pm = PlotManager(false,2,2);
+                pm.LeaveOpen = true;
+            end
             
 %             for k = 1:size(y,1)
 %                 ax = pm.nextPlot('dimx',sprintf('Output %d',k),'t','f');
@@ -331,7 +332,7 @@ classdef Spindle < KerMorObject
             lendiff = 1.08 - .95;
             moto_sig = 30;
             optbase = odeset('RelTol',1e-9,'AbsTol',1e-9);
-            lens = zeros(2,length(ldot));
+            ctimes = zeros(2,length(ldot));
             pm = PlotManager(false,2,1);
             pm.LeaveOpen = true;
             for k = 1:length(ldot)
@@ -340,14 +341,14 @@ classdef Spindle < KerMorObject
                 endtms = starttms + lendiff/ldotms(k);
                 opt = odeset(optbase,'Jacobian',@odejacms);
                 [tms,yms] = ode15s(@(t,y)s.dydt(y,t,moto_sig,Ldotms(t),Lddot),tspanms,s.y0,opt);
-                lens(1,k) = toc(ti);
+                ctimes(1,k) = toc(ti);
                 
                 % S based
                 ti = tic;
                 endt = startt + lendiff/ldot(k);
                 opt = odeset(optbase,'Jacobian',@odejac);
                 [t,y] = ode15s(@(t,y)ss.dydt(y,t,moto_sig,Ldot(t),Lddot),tspan,ss.y0,opt);
-                lens(2,k) = toc(ti);
+                ctimes(2,k) = toc(ti);
                 
 %                 dy0 = s.dydt(s.y0,0,moto_sig,Ldot(1),Lddot);
 %                 opt = odeset(opt,'Jacobian',@ode15ijac);
@@ -359,11 +360,14 @@ classdef Spindle < KerMorObject
                 af = ss.getAfferents(y');
                 afms = s.getAfferents(yms');
                 
-                plot(pm.nextPlot,tms,abs(af-afms));
-                plot(pm.nextPlot,tms,abs((af-afms)./af));
+                ax = pm.nextPlot('',sprintf('Absolute error (\\lambda_dot=%g)',ldot(k)));
+                plot(ax,tms,abs(af-afms));
+                ax = pm.nextPlot('',sprintf('Relative error (\\lambda_dot=%g)',ldot(k)));
+                plot(ax,tms,abs((af-afms)./af));
+                drawnow;
             end
             
-            disp(lens);
+            disp(ctimes);
             
 %             function [J,M] = ode15ijac(t,y,~)
 %                 J = -s.Jdydt(y,t,moto_sig,Ldot(t),Lddot);
@@ -393,12 +397,86 @@ classdef Spindle < KerMorObject
             end
         end
         
+        function test_SpindleInput
+            s = models.fullmuscle.Spindle;
+            Lddot = 0;
+            optbase = odeset('RelTol',1e-6,'AbsTol',1e-6);            
+            opt = odeset(optbase,'Jacobian',@odejacms);
+            SpindleAffarentWeights = sparse([1 1]*0.002);
+            
+            % Random values
+%             rs = RandStream('mt19937ar','Seed',3);
+%             tspan = 0:1:3300;
+%             nvals = 40;
+%             subsel = round(linspace(1,length(tspan),nvals));
+%             y = rs.rand(size(tspan(subsel)))-.3;
+%             y(1:2) = 0;
+%             y = 10*y./tspan(end);
+%             ldotf = general.functions.PiecewiseLinear(tspan(subsel),y);
+%             ldot = ldotf.getFunction;
+%             freq = rs.rand(size(y))*45;
+%             motof = general.functions.PiecewiseLinear(tspan(subsel),freq);
+%             moto_sig = motof.getFunction;
+%             [t, y] = ode15s(@(t,y)s.dydt(y,t,moto_sig(t),ldot(t),Lddot),tspan,s.y0,opt);
+%             s.plot(t,y);
+            
+            % Systematic
+            waittime = 50;
+            ms = [5 20 50 300 1000];
+            lambda = [-.5 -.3 -.1 .1 .3 .5];
+%             ms = [2 3 4 4.5:.1:5.5 10 20 50];
+%             lambda = [-.5 -.1 .1 .5];
+            nms = length(ms);
+            nl = length(lambda);
+            pm = PlotManager(false,4,6);
+            pm.LeaveOpen = true;
+            pm2 = PlotManager(false,4,6);
+            pm2.LeaveOpen = true;
+            pi = ProcessIndicator('Computing %d combinations',nms*nl,false,nms*nl);
+            endsig = zeros(nms,nl);
+            for i = 1:nms
+                for j = 1:length(lambda)
+                    tend = max(ms(i)*3,1000);
+                    tspan = linspace(0,tend,1000);
+                    dt = tspan(2)-tspan(1);
+                    t = [0 waittime+[0 dt ms(i)-dt ms(i)]];
+                    ldotv = [0 0 lambda(j)/ms(i) lambda(j)/ms(i) 0];
+                    ldotf = general.functions.PiecewiseLinear(t,ldotv);
+                    ldot = ldotf.getFunction;
+%                     moto_sig = @(t)15*(sin(t/1000)+1);
+                    moto_sig = @(t)30;
+                    [~, y] = ode15s(@(t,y)s.dydt(y,t,moto_sig(t),ldot(t),Lddot),tspan,s.y0,opt);
+                    %s.plot(t,y);
+                    sig = SpindleAffarentWeights * s.getAfferents(y');
+                    endsig(i,j) = sig(end);
+                    ax = pm.nextPlot('',sprintf('time: %gms, lam: %g',ms(i),lambda(j)),...
+                        'time [ms]','Affarent signal [-]');
+                    plot(ax,tspan,sig);
+                    ax = pm2.nextPlot('',sprintf('Lambda stretch (ldot: %g)',lambda(j)/ms(i)),...
+                        'time [ms]','Affarent signal [-]');
+                    plot(ax,tspan,y(:,9));
+                    pi.step;
+                    drawnow;
+                end
+            end
+            pi.stop;
+            pm.done;
+            pm2.done;
+            figure;
+            [T,L] = meshgrid(ms,lambda);
+            surf(T,L,endsig');
+            
+            function J = odejacms(t,y)
+                J = s.Jdydt(y,t,moto_sig(t),ldot(t),Lddot);
+            end
+        end
+        
         function res = test_Spindle_Jac
             sp{1} = models.fullmuscle.Spindle;
             sp{2} = models.fullmuscle.Spindle(true);
             d = 9;
             n = 10;
-            rs = RandStream('mt19937ar','Seed',0);
+            rs = RandStream('mt19937ar','Seed',1);
             moto_sig = rs.rand(n,1);
             Ldot = (rs.rand-.5)/10;
             Lddot = 0;
@@ -420,7 +498,7 @@ classdef Spindle < KerMorObject
                     reldiff = abs(absdiff./J);
                     maxabsdiff = max(absdiff(s.JSparsityPattern));
                     maxreldiff = max(reldiff(s.JSparsityPattern));
-                    if maxreldiff > .005
+                    if maxreldiff > 1e-5
                         fprintf('Max abs diff: %g, max rel diff: %g\n',maxabsdiff,maxreldiff);
                         res = false;
                     end
@@ -428,12 +506,11 @@ classdef Spindle < KerMorObject
                     J = s.getAfferentsJacobian(x);
                     Jc = (s.getAfferents(X+DX)...
                         - repmat(s.getAfferents(x),1,d))*diag(1./dx);
-%                     [full(J) Jc]
                     absdiff = abs(Jc-J);
                     reldiff = abs(absdiff./J);
                     maxabsdiff = max(absdiff(s.JAfferentSparsityPattern));
                     maxreldiff = max(reldiff(s.JAfferentSparsityPattern));
-                    if maxreldiff > .005
+                    if maxreldiff > 1e-5
                         fprintf('JAfferent max abs diff: %g, max rel diff: %g\n',maxabsdiff,maxreldiff);
                         res = false;
                     end

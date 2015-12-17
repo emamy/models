@@ -77,35 +77,47 @@ classdef System < models.muscle.System;
             end
         end
         
+%         function prepareSimulation(this, mu, inputidx)
+%             % Check for viscosity setting
+%             %
+%             % See also: muslce.System.MooneyRivlinICConst
+%             
+%             prepareSimulation@models.muscle.System(this, mu, inputidx);
+%             
+% %             this.FO.prepareSimulation(mu);
+%         end
+        
 %         function setConfig(this, mu, inputidx)
 %             setConfig@models.muscle.System(this, mu, inputidx);
 %             
-%             if ~isempty(inputidx)
-%                 % Create an input substitute that uses the true external
-%                 % function and creates the effective noisy signal from it
-%                 maxcurrents = this.Motoneuron.getMaxMeanCurrents;
-%                 
-%                 % Get all type-dependent noises from motoneuron class
-%                 no = this.Motoneuron.Noise;%#ok
-%                 
-%                 % First row is neumann input
-%                 uneum = this.Inputs{1,inputidx};%#ok
-%                 
-%                 % Second row is external mean current input
-%                 uext = this.Inputs{2,inputidx};%#ok
-%                 
-%                 % Neumann input as first dimension
-%                 % Motoneuron base mean as second
-%                 % Motoneuron type-dep noises as third
-%                 ng = models.motoneuron.NoiseGenerator;
-%                 ustr = sprintf('@(t)[mu(3)*uneum(t); %g*ones(size(t)); ',ng.AP);
-%                 for k=1:this.nfibres
-%                     rowfun = sprintf('no(%d,round(t)+1)*min(%g,mu(4)*uext(t)); ', k, maxcurrents(k));
-%                     ustr = [ustr rowfun];%#ok
-%                 end
-%                 ustr = [ustr ']'];
-%                 this.u = eval(ustr);
-%             end
+%             this.FO.setConfig(mu, inputidx);
+% %             
+% %             if ~isempty(inputidx)
+% %                 % Create an input substitute that uses the true external
+% %                 % function and creates the effective noisy signal from it
+% %                 maxcurrents = this.Motoneuron.getMaxMeanCurrents;
+% %                 
+% %                 % Get all type-dependent noises from motoneuron class
+% %                 no = this.Motoneuron.Noise;%#ok
+% %                 
+% %                 % First row is neumann input
+% %                 uneum = this.Inputs{1,inputidx};%#ok
+% %                 
+% %                 % Second row is external mean current input
+% %                 uext = this.Inputs{2,inputidx};%#ok
+% %                 
+% %                 % Neumann input as first dimension
+% %                 % Motoneuron base mean as second
+% %                 % Motoneuron type-dep noises as third
+% %                 ng = models.motoneuron.NoiseGenerator;
+% %                 ustr = sprintf('@(t)[mu(3)*uneum(t); %g*ones(size(t)); ',ng.AP);
+% %                 for k=1:this.nfibres
+% %                     rowfun = sprintf('no(%d,round(t)+1)*min(%g,mu(4)*uext(t)); ', k, maxcurrents(k));
+% %                     ustr = [ustr rowfun];%#ok
+% %                 end
+% %                 ustr = [ustr ']'];
+% %                 this.u = eval(ustr);
+% %             end
 %         end
         
     end

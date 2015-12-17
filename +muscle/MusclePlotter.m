@@ -85,45 +85,45 @@ classdef MusclePlotter < handle
             view(h, this.GeoView);
             hold(h,'on');
 
-            looplen = 100;
-            if isscalar(t)
-                looplen = 1;
-            end
-            for loop = 1:looplen;
-            for ts = 1:length(t)
-                % Quit if figure has been closed
-                if ~ishandle(h)
-                    if opts.Vid
-                        vw.close;
+            doloop = true;
+            while doloop
+                for ts = 1:length(t)
+                    % Quit if figure has been closed
+                    if ~ishandle(h)
+                        if opts.Vid
+                            vw.close;
+                        end
+                        break;
                     end
-                    break;
-                end
-                this.plotGeometry(h, t(ts), pd.yfull(:,ts), ts, opts);
+                    this.plotGeometry(h, t(ts), pd.yfull(:,ts), ts, opts);
 
-                if ~isempty(mc.Pool) && opts.Pool
-                    times = t(1:ts);
-                    alpha = mc.Pool.getActivation(times);
-                    walpha = mc.FibreTypeWeights(1,:,1) * alpha;
-                    cla(hf);
-                    plot(hf,times,alpha);
-                    plot(hf,times,walpha,'LineWidth',2);
-                end
-                
-%                 % Quit if figure has been closed (extra check - runtime
-%                 % thing)
-%                 if ~ishandle(h)
-%                     if opts.Vid
-%                         vw.close;
-%                     end
-%                     break;
-%                 end
+                    if ~isempty(mc.Pool) && opts.Pool
+                        times = t(1:ts);
+                        alpha = mc.Pool.getActivation(times);
+                        walpha = mc.FibreTypeWeights(1,:,1) * alpha;
+                        cla(hf);
+                        plot(hf,times,alpha);
+                        plot(hf,times,walpha,'LineWidth',2);
+                    end
 
-                if ~isempty(opts.Vid) && ishandle(h)
-                    vw.writeVideo(getframe(gcf));
-                else
-                    pause(opts.Pause);
+    %                 % Quit if figure has been closed (extra check - runtime
+    %                 % thing)
+    %                 if ~ishandle(h)
+    %                     if opts.Vid
+    %                         vw.close;
+    %                     end
+    %                     break;
+    %                 end
+
+                    if ~isempty(opts.Vid) && ishandle(h)
+                        vw.writeVideo(getframe(gcf));
+                    else
+                        pause(opts.Pause);
+                    end
                 end
-            end
+                if isscalar(t) || ~opts.Loop
+                    doloop = false;
+                end
             end
 
             if opts.Vid
@@ -502,6 +502,7 @@ classdef MusclePlotter < handle
             i.addParamValue('Pause',.01);
             i.addParamValue('Stretch',false,@(v)islogical(v));
             i.addParamValue('DEIM',false,@(v)islogical(v));
+            i.addParamValue('Loop',false,@(v)islogical(v));
             
             args = [this.DefaultArgs args];
             i.parse(args{:});

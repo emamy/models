@@ -1,4 +1,4 @@
-classdef SidePressureTest < models.muscle.AExperimentModelConfig
+classdef SidePressureTest < models.muscle.AMuscleConfig & models.muscle.IExperimentModelConfig
 % Tests to investigate the difference between quasi-static and dynamic
 % simulations.
 %
@@ -25,14 +25,14 @@ classdef SidePressureTest < models.muscle.AExperimentModelConfig
 
     methods
         function this = SidePressureTest(varargin)
-            this = this@models.muscle.AExperimentModelConfig(varargin{:});
+            this = this@models.muscle.AMuscleConfig(varargin{:});
             this.init;
             this.NeumannCoordinateSystem = 'global';
             this.ActivationRampMax = .5;
         end
         
         function configureModel(this, m)
-            configureModel@models.muscle.AExperimentModelConfig(this, m);
+            configureModel@models.muscle.AMuscleConfig(this, m);
             m.T = this.ActivationTime+this.RelaxTime+this.LoadRampTime+10;
             m.dt = m.T/200;
             m.DefaultInput = 1;

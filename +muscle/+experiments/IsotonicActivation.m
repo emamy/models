@@ -1,4 +1,4 @@
-classdef IsotonicActivation < models.muscle.AExperimentModelConfig
+classdef IsotonicActivation < models.muscle.AMuscleConfig & models.muscle.IExperimentModelConfig
     % Implements the isometric contraction experiment
     
     properties(Constant)
@@ -15,9 +15,10 @@ classdef IsotonicActivation < models.muscle.AExperimentModelConfig
     
     methods
         function this = IsotonicActivation(varargin)
-            this = this@models.muscle.AExperimentModelConfig(varargin{:});
+            this = this@models.muscle.AMuscleConfig(varargin{:});
             this.addOption('BC',1);
             this.init;
+            this.initExperiment;
             
             % We need computed initial conditions on this one
             this.RequiresComputedInitialConditions = true;

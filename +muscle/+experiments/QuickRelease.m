@@ -1,4 +1,4 @@
-classdef QuickRelease < models.muscle.AExperimentModelConfig
+classdef QuickRelease < models.muscle.AMuscleConfig & models.muscle.IExperimentModelConfig
 % Provides a model config and test scripts for a quick release test.
 %
 % The material parameters used are suggested by Thomas Heidlauf, see his
@@ -22,12 +22,12 @@ classdef QuickRelease < models.muscle.AExperimentModelConfig
 
     methods
         function this = QuickRelease(varargin)
-            this = this@models.muscle.AExperimentModelConfig(varargin{:});
+            this = this@models.muscle.AMuscleConfig(varargin{:});
             this.init;
         end
         
         function configureModel(this, m)
-            configureModel@models.muscle.AExperimentModelConfig(this, m);
+            configureModel@models.muscle.AMuscleConfig(this, m);
             os = m.ODESolver;
             switch this.GeoNr
                 case 1

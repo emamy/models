@@ -486,6 +486,11 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             this.sarco_output_idx = this.num_motoneuron_dof ...
                 + (53:dsa:this.num_sarco_dof);
         end
+        
+        function res = test_Jacobian(this, varargin)
+            res = test_Jacobian@dscomponents.ACoreFun(this, varargin{:});
+            res = res && models.fullmuscle.Spindle.test_Spindle_Jac;
+        end
     end
 end
 

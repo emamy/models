@@ -1,4 +1,4 @@
-classdef AExperimentModelConfig < models.muscle.AMuscleConfig
+classdef IExperimentModelConfig < KerMorObject
     
     properties
         OutputDir = []; 
@@ -23,11 +23,11 @@ classdef AExperimentModelConfig < models.muscle.AMuscleConfig
     end
     
     methods
-        function this = AExperimentModelConfig(varargin)
-            % Override in subclasses and set NumConfigurations to the
-            % number of possible experiment runs with different IC/BCs.
-            this = this@models.muscle.AMuscleConfig(varargin{:});
-        end
+%         function this = AExperimentModelConfig(varargin)
+%             % Override in subclasses and set NumConfigurations to the
+%             % number of possible experiment runs with different IC/BCs.
+%             this = this@models.muscle.AMuscleConfig(varargin{:});
+%         end
         
         function set.CurrentConfigNr(this, nr)
             % Sets the configuration number.
@@ -46,12 +46,8 @@ classdef AExperimentModelConfig < models.muscle.AMuscleConfig
         function value = get.CurrentConfigNr(this)
             value = this.fCurConfNr;
         end
-    end
-    
-    methods(Access=protected)
-        function init(this)
-            init@models.muscle.AMuscleConfig(this);
-            
+        
+        function initExperiment(this)
             % Also init directories to reasonable defaults
             if isempty(this.OutputDir)
                 mc = metaclass(this);
@@ -60,6 +56,10 @@ classdef AExperimentModelConfig < models.muscle.AMuscleConfig
                 this.OutputDir = outdir;
             end
         end
+    end
+    
+    methods(Access=protected)
+        
     end
     
     methods

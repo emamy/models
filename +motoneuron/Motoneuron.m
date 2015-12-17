@@ -195,7 +195,15 @@ classdef Motoneuron < KerMorObject
     
     methods(Access=private)
         function v = coolExp(~, a, b, mu)
-            v = exp(log(100)*mu)*(b-a)/100 + a;
+            % Moved the cool exp function to general.functions as it is
+            % used now somewhere else, too
+            ce = general.functions.ExpDist(a,b,100);
+            fun = ce.getFunction;
+            v = fun(mu);
+%             v2 = exp(log(100)*mu)*(b-a)/100 + a;
+%             if ~isequal(v,v2)
+%                 error('Fooooo bar!')
+%             end
         end
     end
     

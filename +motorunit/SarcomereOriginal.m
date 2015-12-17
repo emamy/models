@@ -789,7 +789,7 @@ classdef SarcomereOriginal < KerMorObject
                 J(45,31) = -c(79)*y(45);
                 J(45,41) = c(80);
                 J(45,43) = c(82);
-                J(45,44) = c(83)/c(103);%*y(2)
+                J(45,44) = c(83)/c(103);
                 J(45,45) = - c(79)*y(31) - c(81)*y(47) - c(83)/c(103);
                 J(45,47) = -c(81)*y(45);
                 J(46,34) = c(74)*y(46);
@@ -1048,8 +1048,6 @@ classdef SarcomereOriginal < KerMorObject
             
             %% Definitions (copy & paste expressions from evaluate here and comment h73,74,75 expressions)
             
-            
-            
             %% Create partial derivatives
             dir = fileparts(which(mfilename));
             JP = sparse(false(56,56));
@@ -1066,7 +1064,7 @@ classdef SarcomereOriginal < KerMorObject
                 end
             end
             % Store the sparsity pattern
-            save(fullfile(dir,'JSPSarcomereOriginal'),'JP');
+            %save(fullfile(dir,'JSPSarcomereOriginal'),'JP');
         end
     end
     

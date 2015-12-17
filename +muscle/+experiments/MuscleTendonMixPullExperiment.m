@@ -1,4 +1,4 @@
-classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
+classdef MuscleTendonMixPullExperiment < models.muscle.AMuscleConfig & models.muscle.IExperimentModelConfig
     % A simple experiment that pulls at one side with constant force but
     % varying muscle-tendon ratio at the fixed side.
     
@@ -8,7 +8,7 @@ classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
     
     methods
         function this = MuscleTendonMixPullExperiment(varargin)
-            this = this@models.muscle.AExperimentModelConfig(varargin{:});
+            this = this@models.muscle.AMuscleConfig(varargin{:});
             this.init;
             
             this.NumConfigurations = 10;
@@ -16,7 +16,7 @@ classdef MuscleTendonMixPullExperiment < models.muscle.AExperimentModelConfig
         end
         
         function configureModel(this, m)
-            configureModel@models.muscle.AExperimentModelConfig(this, m);
+            configureModel@models.muscle.AMuscleConfig(this, m);
             m.T = 99;
             m.dt = 1;
             m.DefaultInput = 1;
