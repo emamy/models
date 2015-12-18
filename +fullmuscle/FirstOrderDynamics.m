@@ -24,6 +24,8 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
         nfibres;
         
         x0_motorunit;
+        iSJSP;
+        jSJSP
     end
     
     properties(SetAccess=private)
@@ -69,6 +71,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             % Get fibretype-independent noise from NoiseGenerator
             ng = models.motoneuron.NoiseGenerator;
             this.IndepNoise_AP = ng.AP;
+            
+            
+            [this.iSJSP, this.jSJSP] = find(sys.Sarcomere.JSparsityPattern');
         end
         
         function configUpdated(this)
@@ -211,9 +216,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             end
             
             %% Motoneuron exitation (external + spindle)
+            nu = 1.24635;
             indep_sig = moto_signal * this.IndepNoise_AP;
-            fibre_dep_sig = 9*((moto_signal/9).^1.24635) .* this.Noise(:,round(t)+1)';
-%             fibre_dep_sig = moto_signal.* this.Noise(:,round(t)+1)';
+            fibre_dep_sig = 9^(nu-1)*(moto_signal.^nu) .* this.Noise(:,round(t)+1)';
             dy(this.moto_signal_input_pos) = dy(this.moto_signal_input_pos) ...
                 + ((indep_sig + fibre_dep_sig).*this.SomaInputFactors)';
         end
@@ -280,6 +285,8 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                 Jspin_Ldot = double(sp.JLdotSparsityPattern);
                 Jspin_dmoto = double(sp.JMotoSparsityPattern);
                 Jspin_Aff = double(sp.JAfferentSparsityPattern);
+                %Jspin_pattern = logical(Jspin_dmoto*any(Jspin_Aff));
+                Jspin_pattern = repmat(logical(Jspin_dmoto*any(Jspin_Aff)),1,nf);
                 for k=1:nf
                     spindle_pos = off_spindle + ds*(k-1) + (1:ds);
                     SP(spindle_pos,1:sys.NumStateDofs+sys.NumDerivativeDofs) = ...
@@ -287,9 +294,9 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     % Create connecting link to self only when no frequency
                     % detector is used!
                     if ~this.fUseFD
-                        spindle_pos_glob = off_mech + spindle_pos;
-                        SP(spindle_pos,spindle_pos_glob) = ...
-                            SP(spindle_pos,spindle_pos_glob) | logical(Jspin_dmoto*any(Jspin_Aff));
+                        spindles_pos_glob = off_mech + off_spindle + (1:this.num_spindle_dof);
+                        SP(spindle_pos,spindles_pos_glob) = ...
+                            SP(spindle_pos,spindles_pos_glob) | Jspin_pattern;
                     end
                 end
             end
@@ -321,13 +328,13 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                 Jsa{1} = sa.Jdydt(ys, t);
             else
                 Jsa = cell(1,nf);
-                [i,j] = find(sa.JSparsityPattern');
                 % New, faster evaluation! Stick all into the Jdydt function
                 % and create N sparse matrices from that!
                 % Tricky pattern transpose and swap of i,j though
                 Jsaall = sa.Jdydt(ys, t);
                 for idx = 1:nf
-                    Jsa{idx} = sparse(j,i,Jsaall(:,idx),dsa,dsa);
+                    Jsa{idx} = sparse(this.jSJSP, this.iSJSP, ...
+                        Jsaall(:,idx),dsa,dsa);
                 end
             end
             
@@ -341,9 +348,6 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
             dsignal_dmotoout = (this.mslinkfunderiv(moto_out).*moto_out + this.mslinkfun(moto_out))./sa.SarcoConst(1,:)';
             pos = sub2ind(size(J),this.moto_sarco_link_sarco_in,this.moto_sarco_link_moto_out);
             J(pos) = dsignal_dmotoout;
-%             for k=1:nf
-%                 J((k),(k)) = dsignal_dmotoout(k);
-%             end
             
             %% External input signal
             % Get current external signal
@@ -356,7 +360,6 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                 off_spindle = nf*(dm+dsa);
                 spindle_pos = off_mech + off_spindle + (1:this.num_spindle_dof);
                 yspindle = reshape(y(spindle_pos),ds,[]);
-                Jsp = cell(1,nf);
                 if this.fUseFD
                     freq = this.FrequencyDetector.Frequency;
                 else   
@@ -386,13 +389,12 @@ classdef FirstOrderDynamics < dscomponents.ACoreFun
                     
                     %% Spindle to Motoneuron coupling
                     daffk_dy = this.SpindleAffarentWeights*sp.getAfferentsJacobian(yspindle(:,k));
-                    %dnoise_daff = this.Noise(:,round(t)+1).*this.SomaInputFactors(:);
-                    alpha = 1.24635;
-%                     dnoise_daff = (9^(1-alpha)*alpha*moto_signal.^(alpha-1))' .* this.Noise(:,round(t)+1);
-                    dnoise_daff = moto_signal' .* this.Noise(:,round(t)+1);
+                    nu = 1.24635;
+                    dkappak_daffk = (9^(nu-1)*nu*(moto_signal.^(nu-1))'...
+                        .* this.Noise(:,round(t)+1) + this.IndepNoise_AP) .* this.SomaInputFactors(:);
                     i = [i repmat(moto_pos',1,9)];%#ok
                     j = [j repmat(9*(k-1) + (1:9),nf,1)];%#ok
-                    s = [s dnoise_daff*daffk_dy/nf];%#ok
+                    s = [s dkappak_daffk/nf*daffk_dy];%#ok
                     
                     %% Moto to Spindle coupling for learned frequencies
                     % This is effectively a self-coupling as the response
