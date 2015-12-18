@@ -130,7 +130,9 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                 plot(h5,t,pd.ext_mean_current,'b--');
                 hold(h5,'on');
                 plot(h5,t,pd.eff_mean_current(sel,:),'r');
-                plot(h5,t,pd.spindle_mean_current,'g--');
+                if sys.HasSpindle
+                    plot(h5,t,pd.spindle_mean_current,'g--');
+                end
                 axis(h5,[0 t(end) min(pd.eff_mean_current(:)) max(pd.eff_mean_current(:))+100*eps]);
                 ph5 = [];
 
