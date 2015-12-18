@@ -31,7 +31,7 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                 if opts.GeoOnly
                     pm = PlotManager;
                 else
-                    pm = PlotManager(false,2,3);
+                    pm = PlotManager(false,3,3);
                 end
                 pm.LeaveOpen = true;
             else
@@ -48,9 +48,9 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             end
             
             if opts.Geo
-    %             pmgeo = PlotManager;
-    %             pmgeo.LeaveOpen = true;
-                pmgeo = pm;
+                pmgeo = PlotManager;
+                pmgeo.LeaveOpen = true;
+%                 pmgeo = pm;
                 h_geo = pmgeo.nextPlot('geo',sprintf('Deformation at t=%g',t(end)),'x [mm]','y [mm]');
                 zlabel(h_geo,'z [mm]');
                 axis(h_geo, this.getPlotBox(y));
@@ -60,66 +60,87 @@ classdef MusclePlotter < models.muscle.MusclePlotter
             end
             
             if ~opts.GeoOnly
+                ms = 10;
                 
                 if opts.Moto
                     h1 = pm.nextPlot('signal','Motoneuron signal','t [ms]','V_m');
+                    plot(h1,t,pd.moto_vm(sel,:));
                     axis(h1,[0 t(end) min(pd.moto_vm(:)) max(pd.moto_vm(:))]);
                     hold(h1,'on');
+                    ph1 = [];
                 end
 
                 if opts.Sarco
-%                     h2 = pm.nextPlot('force','Action potential','t [ms]','V_m');
-%                     axis(h2,[0 t(end) min(pd.sarco_pot(:)) max(pd.sarco_pot(:))]);
-%                     hold(h2,'on');
+                    h2 = pm.nextPlot('force','Action potential','t [ms]','V_m');
+                    plot(h2,t,pd.sarco_pot(sel,:));
+                    axis(h2,[0 t(end) min(pd.sarco_pot(:)) max(pd.sarco_pot(:))]);
+                    hold(h2,'on');
+                    ph2 = [];
 
                     h3 = pm.nextPlot('force','Motorunit force signals','t [ms]','A_s');
-                    val = pd.sarco_force;
-                    axis(h3,[0 t(end) min(val(:)) max(val(:))]);
+                    force = pd.sarco_force(sel,:);
+                    plot(h3,t,force,'r');
+                    axis(h3,[0 t(end) min(force(:)) max(force(:))]);
                     hold(h3,'on');
+                    ph3 = [];
                     
                     h3b = pm.nextPlot('force','Weighted Activation at Elem1,GP1','t [ms]','A_s');
-                    val = mc.FibreTypeWeights(1,:,1)*pd.sarco_force;
-                    axis(h3b,[0 t(end) min(val(:)) max(val(:))]);
+                    force = mc.FibreTypeWeights(1,:,1)*pd.sarco_force;
+                    plot(h3b,t,force,'b');
+                    axis(h3b,[0 t(end) min(force(:)) max(force(:))]);
                     hold(h3b,'on');
+                    ph3b = [];
                 end
 
                 if opts.Freq
                     hfreq = pm.nextPlot('frequency','Motoneuron frequency','t [ms]','Frequency [Hz]');
                     m = min(pd.freq(:));
                     M = max(pd.freq(:));
+                    plot(hfreq,t,pd.freq(sel,:))
+                    hold(hfreq,'on');
                     if opts.FreqDet && ~fo.UseFrequencyDetector
                         m = min(m, min(pd.freq_det(:)));
                         M = max(M, max(pd.freq_det(:)));
+                        plot(hfreq,t,pd.freq_det(sel,:),'r--');
                     end
                     axis(hfreq,[0 t(end) m M]);
-                    hold(hfreq,'on');
+                    phfreq = [];
                 end
 
                 spos = mc.SpindlePositions;
                 if opts.Spin
                     h_spin_l = pm.nextPlot('spindle_lambda',...
                         'Spindle lambda stretch','t [ms]','Lambda [L_0 = 1]');
+                    plot(h_spin_l, t, pd.spindle_lambda(sel,:));
                     axis(h_spin_l,[0 t(end) min(pd.spindle_lambda(:)) max(pd.spindle_lambda(:))]);
                     hold(h_spin_l,'on');
+                    phs = [];
 
                     if opts.Aff
                         h4 = pm.nextPlot('spindle','Afferents','t [ms]','aff');
+                        affsel = [2*(sel-1)+1; 2*(sel-1)+2];        
+                        plot(h4,t,pd.afferents(affsel(:),:)');
                         axis(h4,[0 t(end) min(pd.afferents(:)) max(pd.afferents(:))]);
                         hold(h4,'on');
-                        affsel = [2*(sel-1)+1; 2*(sel-1)+2];        
+                        ph4 = [];
                     end
                 end
                 
                 h5 = pm.nextPlot('mean_current','Motoneuron input mean current','t [ms]','mean current');
-                axis(h5,[0 t(end) min(pd.eff_mean_current(:)) max(pd.eff_mean_current(:))+eps]);
+                plot(h5,t,pd.ext_mean_current,'b--');
                 hold(h5,'on');
+                plot(h5,t,pd.eff_mean_current(sel,:),'r');
+                plot(h5,t,pd.spindle_mean_current,'g--');
+                axis(h5,[0 t(end) min(pd.eff_mean_current(:)) max(pd.eff_mean_current(:))+100*eps]);
+                ph5 = [];
 
                 if opts.Ext && ~isempty(sys.inputidx)
                     hext = pm.nextPlot('ext_neumann',...
                         'External pressure','t [ms]','Normal pressure [MPa]');
+                    plot(hext, t, pd.uneum);
                     axis(hext,[0 t(end) min(pd.uneum(:)) max(pd.uneum(:))+eps]);
                     hold(hext,'on');
-
+                    phext = [];
     %                 val = pd.uneum * pd.forcefactor;
     %                 hext_f = pm.nextPlot('ext_neumann',...
     %                     'External force','t [ms]','Normal force [mN]');
@@ -141,7 +162,6 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                 if opts.Geo
                     yf = pd.yfull(:,ts);
                     this.plotGeometry(h_geo, t(ts), yf, ts, opts);
-                    
                     if ~opts.GeoOnly && opts.Spin && ~isempty(spos)
                         % Plot spindle locations
                         for k = sel
@@ -156,41 +176,43 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                 
                 if ~opts.GeoOnly
                 
-                    time_part = t(1:ts);
                     if opts.Moto
-                        cla(h1);
-                        plot(h1,time_part,pd.moto_vm(sel,1:ts));
+                        delete(ph1);
+                        ph1 = plot(h1,t(ts),pd.moto_vm(sel,ts),'r.',...
+                            'MarkerSize',ms);
                     end
 
                     if opts.Sarco
-%                         cla(h2);
-%                         plot(h2,time_part,pd.sarco_pot(sel,1:ts));
+                        delete(ph2);
+                        ph2 = plot(h2,t(ts),pd.sarco_pot(sel,ts), ...
+                            'r.','MarkerSize',ms);
 
-                        cla(h3);
-                        force = pd.sarco_force(sel,1:ts);
-                        plot(h3,time_part,force,'r');
+                        delete(ph3);
+                        ph3 = plot(h3,t(ts),pd.sarco_force(sel,ts),...
+                            'r.','MarkerSize',ms);
                         
-                        cla(h3b);
-                        walpha = mc.FibreTypeWeights(1,sel,1) * force;
-                        plot(h3b,time_part,walpha,'b');
+                        delete(ph3b);
+                        walpha = mc.FibreTypeWeights(1,:,1) * pd.sarco_force(:,ts);
+                        ph3b = plot(h3b,t(ts),walpha,'r.','MarkerSize',ms);
                     end
 
-                    cla(h5);
-                    plot(h5,time_part,pd.ext_mean_current(1:ts),'b--');
-                    plot(h5,time_part,pd.eff_mean_current(sel,1:ts),'r');
+                    delete(ph5);
+                    %t(ts),pd.ext_mean_current(ts),'b--',...
+                    ph5 = plot(h5,t(ts),pd.eff_mean_current(sel,ts),'r.','MarkerSize',ms);
                     
                     if opts.Spin
-                        cla(h_spin_l);
-                        plot(h_spin_l, time_part, pd.spindle_lambda(sel,1:ts));
+                        delete(phs);
+                        phs = plot(h_spin_l, t(ts), pd.spindle_lambda(sel,ts),...
+                            'r.','MarkerSize',ms);
                         
-                        % Also add the spindle mean current
-                        plot(h5,time_part,pd.spindle_mean_current(1:ts),'g--');
+%                         % Also add the spindle mean current
+%                         plot(h5,time_part,pd.spindle_mean_current(1:ts),'g--');
 
                         if opts.Aff
-                            cla(h4);
-                            plot(h4,time_part,pd.afferents(affsel(:),1:ts)');
+                            delete(ph4);
+                            ph4 = plot(h4,t(ts),pd.afferents(affsel(:),ts)',...
+                                'r.','MarkerSize',ms);
                             
-
     %                         cla(h6);
     %                         plot(h6,time_part,pd.spindle_single_mean_current(sel,1:ts));
     %                         plot(h6,time_part,pd.eff_mean_current(sel,1:ts),'r--');
@@ -199,16 +221,18 @@ classdef MusclePlotter < models.muscle.MusclePlotter
 %                     axis(h5,'tight');
 
                     if opts.Freq
-                        cla(hfreq);
-                        plot(hfreq,time_part,pd.freq(sel,1:ts))
-                        if opts.FreqDet && ~fo.UseFrequencyDetector
-                            plot(hfreq,time_part,pd.freq_det(sel,1:ts),'r--');
-                        end
+                        delete(phfreq);
+                        phfreq = plot(hfreq,t(ts),pd.freq(sel,ts),...
+                            'r.','MarkerSize',ms);
+%                         if opts.FreqDet && ~fo.UseFrequencyDetector
+%                             plot(hfreq,time_part,pd.freq_det(sel,1:ts),'r--');
+%                         end
                     end
 
                     if opts.Ext && ~isempty(sys.inputidx)
-                        cla(hext);
-                        plot(hext, time_part, pd.uneum(1:ts));
+                        delete(phext);
+                        phext = plot(hext, t(ts), pd.uneum(ts), ...
+                            'r.','MarkerSize',ms);
     %                     cla(hext_f);
     %                     plot(hext_f, time_part, pd.forcefactor*pd.uneum(1:ts));
                     end
@@ -218,7 +242,11 @@ classdef MusclePlotter < models.muscle.MusclePlotter
                 if opts.Vid
                     vw.writeVideo(getframe(gcf));
                 else
-                    drawnow;
+                    if opts.Pause == 0
+                        drawnow;
+                    else
+                        pause(opts.Pause);
+                    end
                 end
             end
             
