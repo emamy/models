@@ -99,8 +99,8 @@ classdef Feedback < models.fullmuscle.AMuscleConfig & models.muscle.IExperimentM
             % Put all spindles at same position, gauss point given by
             % option "SpindleGP"
             o = this.Options;
-%             sp = repmat([1; o.SpindleGP],1,o.Motorunits);
-            sp = [];
+            sp = repmat([1; o.SpindleGP],1,o.Motorunits);
+%             sp = [];
         end
         
         function displ_dir = setPositionDirichletBC(this, displ_dir)
@@ -118,7 +118,7 @@ classdef Feedback < models.fullmuscle.AMuscleConfig & models.muscle.IExperimentM
             % Move the whole front
             velo_dir(1,geo.Elements(1,geo.MasterFaces(2,:))) = true;
             v = this.StretchDist(this.CurrentConfigNr)/this.StretchTime;
-            velo_dir_val(velo_dir) = -v*1e-4
+            velo_dir_val(velo_dir) = v*1e-4
         end
         
         function anull = seta0(~, anull)
