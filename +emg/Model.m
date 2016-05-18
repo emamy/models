@@ -442,6 +442,14 @@ classdef Model < models.BaseFullModel
         end
     end
     
+    methods(Static)
+        function m = getOldNondynamicDefaultModel(varargin)
+            m = models.emg.Model('Shapes','actual',...
+                'FiringTimes','actual','DynamicAmplitudes',false,...
+                'DynamicPropagationSpeed',false,varargin{:});
+        end
+    end
+    
     methods(Static, Access=protected)
         function this = loadobj(this)
             if ~isa(this, 'models.emg.Model')
