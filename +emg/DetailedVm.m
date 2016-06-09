@@ -4,7 +4,7 @@ classdef DetailedVm < KerMorObject
     %
     
     properties(Constant)
-        FullData = load(fullfile('/data/local/musclefibre','FullVms.mat'));
+        FullData = [];%load(fullfile('/data/local/musclefibre','FullVms.mat'));
     end
     
     properties(SetAccess=private)
@@ -35,7 +35,8 @@ classdef DetailedVm < KerMorObject
         end
         
         function sig = computeSignal(this, t, mu)
-            pos = Utils.findVecInMatrix(this.mus_precomp,mu);
+            %pos = Utils.findVecInMatrix(this.mus_precomp,mu);
+            pos = 0;
             % Using fully pre-computed, pre-selected Vms signals
             if ~isempty(this.FullData)
                 if (t(2)-t(1) ~= this.FullData.t(2)-this.FullData.t(1))

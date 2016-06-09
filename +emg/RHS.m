@@ -561,7 +561,12 @@ classdef RHS < dscomponents.ACompEvalCoreFun
                         mc = min(polyval(this.upperlimit_poly,type),mean_current);
                         [t,y] = m.simulate([type; mc], 1);
                         APtimes = (y(2,2:end) > 40).*(y(2,1:end-1) <= 40);
-                        this.MUFiringTimes{idx} = t(logical(APtimes));
+                        comp_ft = t(logical(APtimes));
+                        if length(comp_ft) == 1
+                            comp_ft(2) = .9*t(end);
+                            warning('Only one action potential generated for fibre type mu=%g (activation: %g). Adding second one at 90% of the simulation time to be able to compute velocities.',type,mc);
+                        end
+                        this.MUFiringTimes{idx} = comp_ft;
                         pi.step;
                     end
                     pi.stop;
