@@ -268,7 +268,7 @@ classdef MusclePlotter < handle
                     else
                         if fibres
                             anull = u*sys.dNa0(:,:,m);
-                            quiver3(gps(1,:),gps(2,:),gps(3,:),anull(1,:),anull(2,:),anull(3,:),.5,'.','Color','w');
+                            quiver3(gps(1,:),gps(2,:),gps(3,:),anull(1,:),anull(2,:),anull(3,:),.8,'.','Color','w','LineWidth',2);
                         end
 
                         %% tendon ratio

@@ -267,7 +267,7 @@ classdef Model < models.BaseFullModel
             pm.done;
         end
         
-        function plotActivation(this)
+        function h = plotActivation(this)
             pm = PlotManager;
             pm.LeaveOpen = true;
             f = this.System.f;
