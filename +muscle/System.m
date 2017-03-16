@@ -1,156 +1,157 @@
 classdef System < models.BaseSecondOrderSystem
-% MuscleFibreSystem: The global dynamical system used within the MuscleFibreModel
-%
-% The system u'' + K(u) is transformed into the first order system v' +
-% K(u), u' = v
-%
-% @author Daniel Wirtz @date 2014-01-20
-
+    % MuscleFibreSystem: The global dynamical system used within the MuscleFibreModel
+    %
+    % The system u'' + K(u) is transformed into the first order system v' +
+    % K(u), u' = v
+    %
+    % @author Daniel Wirtz @date 2014-01-20
+    
     properties
-       % The global index of node x,y,z positions within uvw.
-       %
-       % The velocities are indentically indexed but 3*NumNodes later.
-       idx_u_elems_local;
-       
-       % The global index of node pressures within uvw.
-       idx_p_elems_local;
+        % The global index of node x,y,z positions within uvw.
+        %
+        % The velocities are indentically indexed but 3*NumNodes later.
+        idx_u_elems_local;
+        
+        % The global index of node pressures within uvw.
+        idx_p_elems_local;
+        
+        MuscleTendonRatioGP = [];
     end
     
     properties(SetAccess=private)
-       % This contains the indices of the nodes tracking pressure (linear /
-       % 8-corner elements) within the quadratic global node numbering
-       %
-       % Used for plotting only so far.
-       idx_p_to_u_nodes;
-       
-       % The overall values of dirichlet conditions
-       %
-       % To specify in [mm] for position and [mm/ms] for velocity
-       % 
-       % Collected from val_u_bc, val_v_bc
-       val_uv_bc_glob;
-       
-       % The positions of the dirichlet values within the global node/xyz
-       % state space vector
-       %
-       % Collected from idx_u_bc_glob, idx_v_bc_glob
-       idx_uv_bc_glob;
-       
-       %% Position dirichlet fields
-       % Boundary conditions: 3 times numnodes logical matrix telling
-       % which degree of freedom of which (position) node is fixed
-       %     n1   n2   n3 ...
-       % x | 1    0    0       |
-       % y | 1    1    0 ...   |
-       % z | 1    0    0       |
-       bool_u_bc_nodes;
-       idx_u_bc_glob;
-       idx_u_bc_local;
-       val_u_bc; % [mm]
-       
-       %% Velocity dirichlet fields
-       % This set comprises the explicitly/directly set velocity boundary
-       % conditions
-       bool_expl_v_bc_nodes;
-       idx_expl_v_bc_glob;
-       idx_expl_v_bc_local;
-       val_expl_v_bc; % [mm/ms]
-       
-       % This set comprises both the explicit velocity conditions and the
-       % implicit zero velocity conditions that apply for each position
-       % dirichlet condition
-       idx_v_bc_glob;
-       idx_v_bc_local;
-       val_v_bc; % [mm/ms]
-       
-       % Positions of velocity-bc affected DoFs in the u dofs
-       idx_v_bc_u_dof;
-              
-       %% Neumann fields
-       idx_neumann_bc_glob; % [N]
-       idx_neumann_bc_dof; % [N]
-       bc_neum_forces_val;
-       FacesWithForce;
-       
-       %% Convenience variables
-       % A helper array containing the indices of the actual dofs in the
-       % global indexing.
-       %
-       % Used to join dofs with dirichlet values
-       idx_uv_dof_glob;
-       
-       % The indices of u,v,p components in the effective dof vector
-       idx_u_dof_glob;
-       idx_v_dof_glob;
-       num_v_bc;
-       idx_p_dof_glob;
-       
-       % Total number of discrete field points including dirichlet values
-       num_uvp_glob;
-       
-       Minv;
-       
-       %% Fibre stuff
-       HasFibres = false;
-       HasFibreTypes = false;
-       HasMotoPool = false;
-       % Property only useful when fullmodel.System is used.. comes due to
-       % use of inheritance. Better solutions could be thought of, but this
-       % is to get it going!
-       HasForceArgument = false;
-       a0;
-       a0oa0;
-       dNa0;
-       a0Base;
-       
-       %% Tendon stuff
-       HasTendons = false;
-       % The function used to map between muscle (mi) and tendon (ma) parameter over
-       % [0,1] (v)
-       MuscleTendonParamMapFun = @(v,mi,ma)10.^(log10(mi) + v.*(log10(ma)-log10(mi)));
-       MuscleTendonRatioGP = [];
-       MuscleTendonRatioNodes = [];
-       
-       % Fields to contain c10/c01 values for mooney-rivlin law
-       % (muscle+tendon)
-       MuscleTendonParamc10 = [];
-       MuscleTendonParamc01 = [];
-       % Stress free initial condition constant for mooney-rivlin law
-       % This was "classically" done by setting the pressure to this
-       % constant, however, if inhomogeneous material constants are
-       % present, the linear pressure model cannot resolve those values and
-       % hence any initial condition would be inconsistent.
-       % Now, the pressure is initialized as zero and the
-       % MooneyRivlinICConst takes care of consistent initial conditions.
-       MooneyRivlinICConst = [];
-       
-       
-       %% Cross-fibre stiffness stuff
-       % normals to a0
-       a0oa0n1;
-       a0oa0n2;
+        % This contains the indices of the nodes tracking pressure (linear /
+        % 8-corner elements) within the quadratic global node numbering
+        %
+        % Used for plotting only so far.
+        idx_p_to_u_nodes;
+        
+        % The overall values of dirichlet conditions
+        %
+        % To specify in [mm] for position and [mm/ms] for velocity
+        %
+        % Collected from val_u_bc, val_v_bc
+        val_uv_bc_glob;
+        
+        % The positions of the dirichlet values within the global node/xyz
+        % state space vector
+        %
+        % Collected from idx_u_bc_glob, idx_v_bc_glob
+        idx_uv_bc_glob;
+        
+        %% Position dirichlet fields
+        % Boundary conditions: 3 times numnodes logical matrix telling
+        % which degree of freedom of which (position) node is fixed
+        %     n1   n2   n3 ...
+        % x | 1    0    0       |
+        % y | 1    1    0 ...   |
+        % z | 1    0    0       |
+        bool_u_bc_nodes;
+        idx_u_bc_glob;
+        idx_u_bc_local;
+        val_u_bc; % [mm]
+        
+        %% Velocity dirichlet fields
+        % This set comprises the explicitly/directly set velocity boundary
+        % conditions
+        bool_expl_v_bc_nodes;
+        idx_expl_v_bc_glob;
+        idx_expl_v_bc_local;
+        val_expl_v_bc; % [mm/ms]
+        
+        % This set comprises both the explicit velocity conditions and the
+        % implicit zero velocity conditions that apply for each position
+        % dirichlet condition
+        idx_v_bc_glob;
+        idx_v_bc_local;
+        val_v_bc; % [mm/ms]
+        
+        % Positions of velocity-bc affected DoFs in the u dofs
+        idx_v_bc_u_dof;
+        
+        %% Neumann fields
+        idx_neumann_bc_glob; % [N]
+        idx_neumann_bc_dof; % [N]
+        bc_neum_forces_val;
+        FacesWithForce;
+        
+        %% Convenience variables
+        % A helper array containing the indices of the actual dofs in the
+        % global indexing.
+        %
+        % Used to join dofs with dirichlet values
+        idx_uv_dof_glob;
+        
+        % The indices of u,v,p components in the effective dof vector
+        idx_u_dof_glob;
+        idx_v_dof_glob;
+        num_v_bc;
+        idx_p_dof_glob;
+        
+        % Total number of discrete field points including dirichlet values
+        num_uvp_glob;
+        
+        Minv;
+        
+        %% Fibre stuff
+        HasFibres = false;
+        HasFibreTypes = false;
+        HasMotoPool = false;
+        % Property only useful when fullmodel.System is used.. comes due to
+        % use of inheritance. Better solutions could be thought of, but this
+        % is to get it going!
+        HasForceArgument = false;
+        a0;
+        a0oa0;
+        dNa0;
+        a0Base;
+        
+        %% Tendon stuff
+        HasTendons = false;
+        % The function used to map between muscle (mi) and tendon (ma) parameter over
+        % [0,1] (v)
+        MuscleTendonParamMapFun = @(v,mi,ma)10.^(log10(mi) + v.*(log10(ma)-log10(mi)));
+        MuscleTendonRatioNodes = [];
+        
+        % Fields to contain c10/c01 values for mooney-rivlin law
+        % (muscle+tendon)
+        MuscleTendonParamc10 = [];
+        MuscleTendonParamc01 = [];
+        % Stress free initial condition constant for mooney-rivlin law
+        % This was "classically" done by setting the pressure to this
+        % constant, however, if inhomogeneous material constants are
+        % present, the linear pressure model cannot resolve those values and
+        % hence any initial condition would be inconsistent.
+        % Now, the pressure is initialized as zero and the
+        % MooneyRivlinICConst takes care of consistent initial conditions.
+        MooneyRivlinICConst = [];
+        
+        
+        %% Cross-fibre stiffness stuff
+        % normals to a0
+        a0oa0n1;
+        a0oa0n2;
     end
-   
+    
     properties(Dependent)
-       % Flag to invert the velocity mass matrix before simulations.
-       %
-       % If this is set to true, the mass matrix for the velocity part will
-       % be assembled, the boundary condition rows removed and the inverse
-       % of the remaining matrix will be pre-computed.
-       % This inverse will be pre-multiplied to the velocity-dofs inside
-       % the models.muscle.Dynamics evaluate and getStateJacobian functions.
-       %
-       % This in general results in higher simulation speed but it remains
-       % open to see how well reduced modeling will work with that scheme.
-       %
-       % @type logical @default false
-       UseDirectMassInversion;
-       
-       % Flag to indicate if this system should use stiffness terms
-       % (Markert) for cross-fibre directions.
-       %
-       % @type logaical @default false
-       UseCrossFibreStiffness;
+        % Flag to invert the velocity mass matrix before simulations.
+        %
+        % If this is set to true, the mass matrix for the velocity part will
+        % be assembled, the boundary condition rows removed and the inverse
+        % of the remaining matrix will be pre-computed.
+        % This inverse will be pre-multiplied to the velocity-dofs inside
+        % the models.muscle.Dynamics evaluate and getStateJacobian functions.
+        %
+        % This in general results in higher simulation speed but it remains
+        % open to see how well reduced modeling will work with that scheme.
+        %
+        % @type logical @default false
+        UseDirectMassInversion;
+        
+        % Flag to indicate if this system should use stiffness terms
+        % (Markert) for cross-fibre directions.
+        %
+        % @type logaical @default false
+        UseCrossFibreStiffness;
     end
     
     properties(Access=private)
@@ -313,7 +314,7 @@ classdef System < models.BaseSecondOrderSystem
                 % Find the indices of the pressure nodes in the displacement
                 % nodes geometry (used for plotting)
                 this.idx_p_to_u_nodes = geo_pos.getCommonNodesWith(geo_p);
-
+                
                 % Call subroutine for boundary condition index crunching
                 % This needs to be done before we can compute the effective
                 % Dofs of the system.
@@ -335,7 +336,7 @@ classdef System < models.BaseSecondOrderSystem
                 this.HasFibreTypes = this.HasFibres && ~isempty(mc.FibreTypeWeights);
                 this.HasForceArgument = this.HasFibreTypes && isa(this,'models.fullmuscle.System');
                 this.HasTendons = ~isempty(mc.getTendonMuscleRatio(zeros(3,1)));
-
+                
                 % Construct global indices in uw from element nodes. Each dof in
                 % an element is used three times for x,y,z displacement. The
                 % "elems" matrix contains the overall DOF numbers of each
@@ -350,20 +351,20 @@ classdef System < models.BaseSecondOrderSystem
                     globalelementdofs(:,:,m) = [hlp; hlp+1; hlp+2];
                 end
                 this.idx_u_elems_local = globalelementdofs;
-
+                
                 % The same for the pressure
                 globalpressuredofs = zeros(geo_p.DofsPerElement,geo_p.NumElements,'int32');
                 for m = 1:geo_p.NumElements
                     globalpressuredofs(:,m) = geo_p.Elements(m,:);
                 end
                 this.idx_p_elems_local = globalpressuredofs;
-
+                
                 %% Compile Mass Matrix
                 this.M = dscomponents.ConstMassMatrix(this.assembleMassMatrix);
-
+                
                 %% Compile Damping Matrix
                 this.fD = this.assembleDampingMatrix;
-
+                
                 %% Tell f we have a new config
                 this.f.configUpdated;
                 
@@ -403,6 +404,22 @@ classdef System < models.BaseSecondOrderSystem
             % We have mu-dependent mooney-rivlin and markert laws.
             this.updateTendonMuscleParamsGP;
             
+            
+            %% Neu! Verhindert das ueberschreiben der angepassten TMR bei mu(2) ~= 0
+            if mu(2) ~=0
+                % Ersetzt die TMR's durch die Mittelwerte der bisherigen
+                % Wichtig, das Attribut wurde in System auf public gesetzt!!
+                this.MuscleTendonRatioGP(1:size(this.MuscleTendonRatioGP,1),:)...
+                    = repmat(mean(this.MuscleTendonRatioGP),...
+                    size(this.MuscleTendonRatioGP,1),1);
+                
+                % Kleine Anpassung um an Stellen wirklich nur Tendon/Muscle zu
+                % haben
+                this.MuscleTendonRatioGP = (this.MuscleTendonRatioGP - ...
+                    min(this.MuscleTendonRatioGP(:)))/(max(this.MuscleTendonRatioGP(:)...
+                    -min(this.MuscleTendonRatioGP(:))))./(10^(6));
+            end
+            
             % Update the MooneyRivlinICConst to have stress-free IC
             % This depends on the current muscle/tendon parameters for
             % mooney-rivlin (updated one step before)
@@ -435,7 +452,7 @@ classdef System < models.BaseSecondOrderSystem
             % current time.
             %
             % See also: ODEFun DerivativeDirichletPosInStateDofs
-
+            
             % Check if velocity bc's should be applied in time-dependent manner
             if ~isempty(this.velo_bc_fun)
                 val = this.velo_bc_fun(t)*this.val_expl_v_bc;
@@ -589,8 +606,8 @@ classdef System < models.BaseSecondOrderSystem
             
             fe_displ = mc.FEM;
             geo = fe_displ.Geometry;
-%             fe_press = mc.PressureFEM;
-%             pgeo = fe_press.Geometry;
+            %             fe_press = mc.PressureFEM;
+            %             pgeo = fe_press.Geometry;
             
             % Total number of position entries in global vector
             num_u_glob = geo.NumNodes * 3;
@@ -641,28 +658,28 @@ classdef System < models.BaseSecondOrderSystem
             this.val_uv_bc_glob = this.val_uv_bc_glob(idx);
             
             % Compute dof positions in global state space vector
-%             
-%             pos = false(1,total);
-%             pos(1:num_u_glob) = true;
-%             pos(this.idx_uv_bc_glob) = [];
-%             this.idx_u_dof_glob = int32(find(pos));
+            %
+            %             pos = false(1,total);
+            %             pos(1:num_u_glob) = true;
+            %             pos(this.idx_uv_bc_glob) = [];
+            %             this.idx_u_dof_glob = int32(find(pos));
             
-%             pos = false(1,total);
-%             pos(num_u_glob+1:num_u_glob*2) = true;
-%             pos(this.idx_uv_bc_glob) = [];
-%             this.idx_v_dof_glob = int32(find(pos));
+            %             pos = false(1,total);
+            %             pos(num_u_glob+1:num_u_glob*2) = true;
+            %             pos(this.idx_uv_bc_glob) = [];
+            %             this.idx_v_dof_glob = int32(find(pos));
             
-%             pos = false(1,total);
-%             pos(this.idx_v_bc_glob-num_u_glob) = true;
-%             pos(this.idx_u_bc_glob) = [];
-%             this.idx_v_bc_u_dof = int32(find(pos));
+            %             pos = false(1,total);
+            %             pos(this.idx_v_bc_glob-num_u_glob) = true;
+            %             pos(this.idx_u_bc_glob) = [];
+            %             this.idx_v_bc_u_dof = int32(find(pos));
             
             % no possible dirichlet values for p. so have all
-%             this.idx_p_dof_glob = geo.NumNodes*6-length(this.idx_uv_bc_glob) + (1:pgeo.NumNodes);
-%             this.NumAlgebraicDofs = length(this.idx_p_dof_glob);
+            %             this.idx_p_dof_glob = geo.NumNodes*6-length(this.idx_uv_bc_glob) + (1:pgeo.NumNodes);
+            %             this.NumAlgebraicDofs = length(this.idx_p_dof_glob);
             % Automatically mark the pressure DoFs as algebraic condition.
             % Important for reduction.
-%             this.AlgebraicConditionDoF = this.idx_p_dof_glob;
+            %             this.AlgebraicConditionDoF = this.idx_p_dof_glob;
             
             
         end
@@ -677,9 +694,9 @@ classdef System < models.BaseSecondOrderSystem
             this.HasFibres = false;
             if any(anull(:))
                 this.HasFibres = true;
-            
+                
                 this.a0 = anull;
-
+                
                 % Precomputations
                 dNgp = fe.gradN(fe.GaussPoints);
                 Ngp = fe.N(fe.GaussPoints);
@@ -709,7 +726,7 @@ classdef System < models.BaseSecondOrderSystem
                         loc_anulln1 = circshift(loc_anull,1);
                         loc_anulln1 = loc_anulln1 - (loc_anulln1'*loc_anull) * loc_anull;
                         loc_anulln1 = loc_anulln1/norm(loc_anulln1);
-
+                        
                         loc_anulln2 = circshift(loc_anull,2);
                         loc_anulln2 = loc_anulln2 - (loc_anulln2'*loc_anull) * loc_anull - (loc_anulln2'*loc_anulln1) * loc_anulln1;
                         loc_anulln2 = loc_anulln2/norm(loc_anulln2);
@@ -740,7 +757,7 @@ classdef System < models.BaseSecondOrderSystem
                 this.a0oa0n2 = [];
                 if this.fUseCrossFibreStiffness
                     this.a0oa0n1 = a0a0n1;
-                    this.a0oa0n2 = a0a0n2;    
+                    this.a0oa0n2 = a0a0n2;
                 end
             end
         end
@@ -761,7 +778,7 @@ classdef System < models.BaseSecondOrderSystem
             mc = this.Model.Config;
             fe = mc.FEM;
             tmr = zeros(fe.GaussPointsPerElem,fe.Geometry.NumElements);
-            if ~isequal(this.fLastMu,mu) || any(size(this.MuscleTendonRatioGP) ~= size(tmr))    
+            if ~isequal(this.fLastMu,mu) || any(size(this.MuscleTendonRatioGP) ~= size(tmr))
                 if this.HasTendons
                     g = fe.Geometry;
                     for m = 1:g.NumElements

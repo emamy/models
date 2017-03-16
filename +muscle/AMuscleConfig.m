@@ -31,7 +31,7 @@ classdef AMuscleConfig < fem.AFEMConfig
         % This is e.g. implicitly used by
         % models.muscle.Dynamics.prepareSimulation, when the alpha ramp is created
         % for positive mu(2) values (=ramp times).
-        %
+        %-
         % @type double @default 1
         ActivationRampMax = 1;
         
@@ -41,9 +41,10 @@ classdef AMuscleConfig < fem.AFEMConfig
         % This is e.g. implicitly used by
         % models.muscle.Dynamics.prepareSimulation, when the alpha ramp is created
         % for positive mu(2) values (=ramp times).
+        % In seconds not ms
         %
         % @type double @default 0
-        ActivationRampOffset = 0;
+        ActivationRampOffset = 0.5;
     end
     
     properties(Access=private)
