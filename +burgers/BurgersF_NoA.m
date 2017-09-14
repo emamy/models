@@ -41,6 +41,7 @@ classdef BurgersF_NoA < dscomponents.ACompEvalCoreFun
             d1 = e/(2*dx);
             this.Ax = spdiags([-d1 0*d1  d1], -1:1, n, n);
             this.JSparsityPattern = spdiags([e e  e], -1:1, n, n);
+            spy(this.JSparsityPattern);
             this.xDim = n;
             this.fDim = n;
         end
@@ -76,8 +77,11 @@ classdef BurgersF_NoA < dscomponents.ACompEvalCoreFun
             % Return values:
             % fxj: A matrix with pts-many component function evaluations `f_i(\vx)` as rows and as
             % many columns as `\vX` had.
+            % Anzahl Punkte, die ausgewertet werden; Zeit
             fxj = zeros(length(pts),size(X,2));
+            % Iteration über Anzahl der auszuwertenden f_i
             for idx=1:length(pts)
+                %derzeitiger globaler Index von f_i, das ausgewertet wird
                 pt = pts(idx);
                 if idx == 1
                     st = 0;
@@ -85,10 +89,26 @@ classdef BurgersF_NoA < dscomponents.ACompEvalCoreFun
                     st = ends(idx-1);
                 end
                 % Select the elements of x that are effectively used in f
+                % ends(i-1) + 1: ends(i+1)
                 xidx = (st+1):ends(idx);
+                % wirklich benötigte Werte von X für f_i über alle Zeitschritte
                 x = X(xidx,:);
+                %disp(self(xidx));
+                % gebe nur punkt zurück, der auch teil des outputs von f
+                % xidx ist auch nur lokaler Index
+                %disp(x(self(xidx),:));
+                % globaler Index
+                %disp(argidx(xidx));
+                % Teil der Matrix, der verwendet wird
+                %disp(this.Ax(pt,argidx(xidx)));
+                % matrix mit vielen punkten: wähle nur den teil, der die
+                % involvierten punkte betrifft
+                % disp(this.Ax(pt,argidx(xidx)));
+                % fxj(idx,:) = nicht globale Position
+                % einzige Möglichkeit
                 fxj(idx,:) = - x(self(xidx),:) .* (this.Ax(pt,argidx(xidx))*x);
             end
+            
         end
         
         function fxj = evaluateComponentsMulti(this, varargin)

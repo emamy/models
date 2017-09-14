@@ -136,7 +136,7 @@ classdef System < models.motorunit.MotorunitBaseSystem
         end
         
         function assembleC(this, options)
-            % input conversion matrix, depends on fibre type. Has only one
+            % output conversion matrix, depends on fibre type. Has only one
             % entry in second row.
             C = dscomponents.AffLinOutputConv;
             % Extract V_s
